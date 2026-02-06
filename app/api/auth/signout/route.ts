@@ -12,6 +12,15 @@ export async function GET() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split(".")[0] : ""
 
+  // Cookie deletion options - be aggressive with settings
+  const deleteOptions = {
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+  }
+
   // Delete cookies by setting them with immediate expiration on the RESPONSE
   const cookieNames = [
     `sb-${projectRef}-auth-token`,
@@ -21,12 +30,7 @@ export async function GET() {
   ]
 
   for (const name of cookieNames) {
-    // Set cookie to empty with immediate expiration
-    response.cookies.set(name, "", {
-      path: "/",
-      maxAge: 0,
-      expires: new Date(0),
-    })
+    response.cookies.set(name, "", deleteOptions)
   }
 
   // Also try to read all cookies and delete any sb- ones
@@ -36,11 +40,7 @@ export async function GET() {
     
     for (const cookie of allCookies) {
       if (cookie.name.startsWith("sb-")) {
-        response.cookies.set(cookie.name, "", {
-          path: "/",
-          maxAge: 0,
-          expires: new Date(0),
-        })
+        response.cookies.set(cookie.name, "", deleteOptions)
       }
     }
   } catch {
@@ -56,6 +56,14 @@ export async function POST() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split(".")[0] : ""
 
+  const deleteOptions = {
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+  }
+
   const cookieNames = [
     `sb-${projectRef}-auth-token`,
     `sb-${projectRef}-auth-token-code-verifier`,
@@ -64,11 +72,7 @@ export async function POST() {
   ]
 
   for (const name of cookieNames) {
-    response.cookies.set(name, "", {
-      path: "/",
-      maxAge: 0,
-      expires: new Date(0),
-    })
+    response.cookies.set(name, "", deleteOptions)
   }
 
   try {
@@ -77,11 +81,7 @@ export async function POST() {
     
     for (const cookie of allCookies) {
       if (cookie.name.startsWith("sb-")) {
-        response.cookies.set(cookie.name, "", {
-          path: "/",
-          maxAge: 0,
-          expires: new Date(0),
-        })
+        response.cookies.set(cookie.name, "", deleteOptions)
       }
     }
   } catch {

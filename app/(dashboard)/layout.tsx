@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase-server"
+import { createClient, createServiceClient } from "@/lib/supabase-server"
 import { Sidebar } from "@/components/sidebar"
 import { AuthProvider } from "@/lib/auth-context"
 
@@ -16,11 +16,14 @@ export default async function DashboardLayout({
     redirect("/login")
   }
 
+  // Use service client to bypass RLS for user_access lookup
+  const serviceClient = await createServiceClient()
+  
   // Check user_access status in the database
-  const { data: userAccess, error } = await supabase
+  const { data: userAccess, error } = await serviceClient
     .from("user_access")
     .select("status, role")
-    .eq("email", user.email)
+    .eq("email", user.email?.toLowerCase())
     .single()
 
   // Handle case where user_access table doesn't exist yet (first-time setup)

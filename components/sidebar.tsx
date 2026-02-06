@@ -40,17 +40,16 @@ export function Sidebar() {
   const isAdmin = userAccess?.role === "admin"
 
   const handleSignOut = () => {
-    // Clear all Supabase auth data from localStorage
+    // Clear localStorage items
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('sb-') || key.includes('supabase')) {
         localStorage.removeItem(key)
       }
     })
-    // Clear Google tokens too
     localStorage.removeItem('google_access_token')
     localStorage.removeItem('google_token_expiry')
-    // Force full page redirect to login
-    window.location.replace("/login")
+    // Use server-side sign out to clear httpOnly cookies
+    window.location.href = "/api/auth/signout"
   }
 
   return (

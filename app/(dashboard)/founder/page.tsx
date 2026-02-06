@@ -53,9 +53,9 @@ export default function FounderPage() {
   })
 
   return (
-    <div className="p-6 lg:p-10 max-w-7xl">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-7xl">
       {/* Header */}
-      <div className="mb-10">
+      <div className="mb-6 sm:mb-10">
         <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-400">
           Dashboard
         </p>

@@ -86,8 +86,8 @@ export default function KnowledgeBasePage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b border-slate-200 bg-white px-8 py-4">
-        <div className="flex items-center justify-between">
+      <div className="border-b border-slate-200 bg-white px-4 sm:px-8 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-slate-900">
               Knowledge Base
@@ -107,7 +107,7 @@ export default function KnowledgeBasePage() {
 
       {/* Chat Area */}
       <ScrollArea className="flex-1">
-        <div className="mx-auto max-w-3xl px-8 py-6">
+        <div className="mx-auto max-w-3xl px-4 sm:px-8 py-6">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50">
@@ -195,7 +195,7 @@ export default function KnowledgeBasePage() {
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="border-t border-slate-200 bg-white px-8 py-4">
+      <div className="border-t border-slate-200 bg-white px-4 sm:px-8 py-4">
         <form
           onSubmit={handleSubmit}
           className="mx-auto flex max-w-3xl items-center gap-3"

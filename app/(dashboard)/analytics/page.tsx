@@ -59,10 +59,10 @@ function formatPercent(value: number): string {
 
 export default function AnalyticsPage() {
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Analytics</h1>
             <p className="mt-1 text-sm text-slate-600">

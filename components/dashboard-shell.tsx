@@ -48,7 +48,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content */}
-      <main className="relative flex-1 overflow-auto bg-[#fafafa] pt-14 md:pt-0">
+      <main className="relative flex-1 overflow-x-hidden overflow-y-auto bg-[#fafafa] pt-14 md:pt-0">
         {children}
       </main>
     </div>

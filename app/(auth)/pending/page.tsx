@@ -1,67 +1,90 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
+import { createClient } from "@/lib/supabase-browser"
 import { Clock, LogOut, RefreshCw, Loader2 } from "lucide-react"
 
 export default function PendingPage() {
-  const { user, userAccess, loading, signOut, refreshUserAccess } = useAuth()
-  const router = useRouter()
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  const supabase = createClient()
+
   useEffect(() => {
-    // If not authenticated, redirect to login
-    if (!loading && !user) {
-      router.push("/login")
-      return
+    const checkStatus = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (!user) {
+          window.location.href = "/login"
+          return
+        }
+
+        setUserEmail(user.email || null)
+
+        // Check user_access status
+        const { data: access } = await supabase
+          .from("user_access")
+          .select("status")
+          .eq("email", user.email)
+          .single()
+
+        if (access?.status === "approved") {
+          window.location.href = "/"
+          return
+        }
+
+        if (access?.status === "denied") {
+          window.location.href = "/denied"
+          return
+        }
+
+        setStatus(access?.status || "pending")
+        setLoading(false)
+      } catch (error) {
+        console.error("Error checking status:", error)
+        setLoading(false)
+      }
     }
 
-    // If approved, redirect to home
-    if (!loading && userAccess?.status === "approved") {
-      router.push("/")
-      return
-    }
-
-    // If denied, redirect to denied page
-    if (!loading && userAccess?.status === "denied") {
-      router.push("/denied")
-      return
-    }
-
-    // If user is authenticated but has no access record, create one
-    if (!loading && user && !userAccess) {
-      createAccessRequest()
-    }
-  }, [user, userAccess, loading, router])
-
-  const createAccessRequest = async () => {
-    if (!user?.email) return
-
-    try {
-      await fetch("/api/access-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          name: user.user_metadata?.full_name || user.user_metadata?.name,
-        }),
-      })
-      await refreshUserAccess()
-    } catch (err) {
-      console.error("Failed to create access request:", err)
-    }
-  }
+    checkStatus()
+  }, [supabase])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
-    await refreshUserAccess()
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.email) return
+
+      const { data: access } = await supabase
+        .from("user_access")
+        .select("status")
+        .eq("email", user.email)
+        .single()
+
+      if (access?.status === "approved") {
+        window.location.href = "/"
+        return
+      }
+
+      if (access?.status === "denied") {
+        window.location.href = "/denied"
+        return
+      }
+
+      setStatus(access?.status || "pending")
+    } catch (error) {
+      console.error("Error refreshing status:", error)
+    }
+    
     setIsRefreshing(false)
   }
 
-  const handleSignOut = async () => {
-    await signOut()
-    router.push("/login")
+  const handleSignOut = () => {
+    window.location.href = "/api/auth/signout"
   }
 
   if (loading) {
@@ -90,10 +113,10 @@ export default function PendingPage() {
           </p>
         </div>
 
-        {user && (
+        {userEmail && (
           <div className="rounded-lg bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-600">
-              Signed in as <span className="font-medium">{user.email}</span>
+              Signed in as <span className="font-medium">{userEmail}</span>
             </p>
           </div>
         )}

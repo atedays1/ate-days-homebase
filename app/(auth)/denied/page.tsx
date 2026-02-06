@@ -1,37 +1,56 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase-browser"
 import { XCircle, LogOut, Loader2 } from "lucide-react"
 
 export default function DeniedPage() {
-  const { user, userAccess, loading, signOut } = useAuth()
-  const router = useRouter()
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const supabase = createClient()
 
   useEffect(() => {
-    // If not authenticated, redirect to login
-    if (!loading && !user) {
-      router.push("/login")
-      return
+    const checkStatus = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          window.location.href = "/login"
+          return
+        }
+
+        setUserEmail(user.email || null)
+
+        // Check user_access status
+        const { data: access } = await supabase
+          .from("user_access")
+          .select("status")
+          .eq("email", user.email)
+          .single()
+
+        if (access?.status === "approved") {
+          window.location.href = "/"
+          return
+        }
+
+        if (access?.status === "pending") {
+          window.location.href = "/pending"
+          return
+        }
+
+        setLoading(false)
+      } catch (error) {
+        console.error("Error checking status:", error)
+        setLoading(false)
+      }
     }
 
-    // If approved, redirect to home
-    if (!loading && userAccess?.status === "approved") {
-      router.push("/")
-      return
-    }
+    checkStatus()
+  }, [supabase])
 
-    // If pending, redirect to pending page
-    if (!loading && userAccess?.status === "pending") {
-      router.push("/pending")
-      return
-    }
-  }, [user, userAccess, loading, router])
-
-  const handleSignOut = async () => {
-    await signOut()
-    router.push("/login")
+  const handleSignOut = () => {
+    window.location.href = "/api/auth/signout"
   }
 
   if (loading) {
@@ -60,10 +79,10 @@ export default function DeniedPage() {
           </p>
         </div>
 
-        {user && (
+        {userEmail && (
           <div className="rounded-lg bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-600">
-              Signed in as <span className="font-medium">{user.email}</span>
+              Signed in as <span className="font-medium">{userEmail}</span>
             </p>
           </div>
         )}

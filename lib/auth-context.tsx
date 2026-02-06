@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
 import { createClient } from "@/lib/supabase-browser"
-import { User, Session } from "@supabase/supabase-js"
+import { User } from "@supabase/supabase-js"
 
 interface UserAccess {
   id: string
@@ -18,11 +18,10 @@ interface UserAccess {
 
 interface AuthContextType {
   user: User | null
-  session: Session | null
   userAccess: UserAccess | null
   loading: boolean
   signInWithGoogle: () => Promise<void>
-  signOut: () => Promise<void>
+  signOut: () => void
   refreshUserAccess: () => Promise<void>
 }
 
@@ -30,11 +29,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [userAccess, setUserAccess] = useState<UserAccess | null>(null)
   const [loading, setLoading] = useState(true)
-
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   const fetchUserAccess = async (email: string) => {
     try {
@@ -63,48 +60,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Get initial session
+    let mounted = true
+
     const initializeAuth = async () => {
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession()
+        // Use getUser() instead of getSession() - more reliable
+        const { data: { user: currentUser }, error } = await supabase.auth.getUser()
         
-        setSession(initialSession)
-        setUser(initialSession?.user ?? null)
-
-        if (initialSession?.user?.email) {
-          const access = await fetchUserAccess(initialSession.user.email)
-          setUserAccess(access)
+        if (error) {
+          // Don't log AbortError - it's expected in some cases
+          if (!error.message?.includes("abort")) {
+            console.error("Error getting user:", error)
+          }
         }
-      } catch (error) {
-        console.error("Error initializing auth:", error)
-      } finally {
-        setLoading(false)
+
+        if (mounted) {
+          setUser(currentUser)
+          
+          if (currentUser?.email) {
+            const access = await fetchUserAccess(currentUser.email)
+            if (mounted) setUserAccess(access)
+          }
+          
+          setLoading(false)
+        }
+      } catch (error: unknown) {
+        // Ignore AbortError - it's a known Supabase issue
+        if (error instanceof Error && error.name === "AbortError") {
+          console.log("Auth initialization aborted (expected in some cases)")
+        } else {
+          console.error("Error initializing auth:", error)
+        }
+        if (mounted) setLoading(false)
       }
     }
 
     initializeAuth()
 
-    // Listen for auth changes
+    // Listen for auth changes with error handling
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession)
-        setUser(newSession?.user ?? null)
+      async (event, session) => {
+        if (!mounted) return
 
-        if (newSession?.user?.email) {
-          const access = await fetchUserAccess(newSession.user.email)
-          setUserAccess(access)
-        } else {
-          setUserAccess(null)
+        try {
+          const newUser = session?.user ?? null
+          setUser(newUser)
+
+          if (newUser?.email) {
+            const access = await fetchUserAccess(newUser.email)
+            if (mounted) setUserAccess(access)
+          } else {
+            setUserAccess(null)
+          }
+        } catch (error: unknown) {
+          // Ignore AbortError
+          if (error instanceof Error && error.name === "AbortError") {
+            return
+          }
+          console.error("Error in auth state change:", error)
         }
-
-        setLoading(false)
       }
     )
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, [supabase])
 
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -124,26 +146,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signOut = async () => {
-    // Clear local state first
+  const signOut = () => {
+    // Clear local state
     setUser(null)
-    setSession(null)
     setUserAccess(null)
     
-    // Try to sign out from Supabase (use local scope to avoid lock issues)
-    try {
-      await supabase.auth.signOut({ scope: 'local' })
-    } catch (error) {
-      // Ignore errors - we've already cleared local state
-      console.log("Sign out completed with warning:", error)
-    }
+    // Redirect to server-side sign-out endpoint
+    // This properly clears httpOnly cookies
+    window.location.href = "/api/auth/signout"
   }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
         userAccess,
         loading,
         signInWithGoogle,

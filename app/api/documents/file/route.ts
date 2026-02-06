@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase-server"
 import { requireAuth } from "@/lib/api-auth"
 
 export async function GET(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+
+    // Create service client for storage operations (bypasses RLS)
+    const serviceClient = await createServiceClient()
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
@@ -38,8 +42,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Generate a signed URL valid for 1 hour
-    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+    // Generate a signed URL valid for 1 hour (using service client to bypass RLS)
+    const { data: signedUrlData, error: signedUrlError } = await serviceClient.storage
       .from("documents")
       .createSignedUrl(document.file_path, 3600) // 1 hour = 3600 seconds
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabase, Document, DocumentChunk } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase-server"
 import { createEmbedding, createEmbeddings } from "@/lib/embeddings"
 import { processPDF, processSpreadsheet, chunkText } from "@/lib/document-processor"
 import { downloadDriveFile, getGoogleFileTypeLabel, GOOGLE_MIME_TYPES } from "@/lib/google"
@@ -66,6 +67,9 @@ export async function POST(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+
+    // Create service client for storage operations (bypasses RLS)
+    const serviceClient = await createServiceClient()
     
     const { files, accessToken } = (await request.json()) as {
       files: DriveFileInput[]
@@ -149,7 +153,7 @@ export async function POST(request: NextRequest) {
         let storedFilePath: string | null = null
 
         try {
-          const { data: uploadData, error: uploadError } = await supabase.storage
+          const { data: uploadData, error: uploadError } = await serviceClient.storage
             .from("documents")
             .upload(filePath, downloadedFile.content, {
               contentType: downloadedFile.mimeType,
@@ -182,7 +186,7 @@ export async function POST(request: NextRequest) {
           console.error("Error creating document:", docError)
           // Clean up stored file if document creation fails
           if (storedFilePath) {
-            await supabase.storage.from("documents").remove([storedFilePath])
+            await serviceClient.storage.from("documents").remove([storedFilePath])
           }
           results.push({
             fileId: file.id,
@@ -212,7 +216,7 @@ export async function POST(request: NextRequest) {
           // Clean up the document and stored file if chunks failed
           await supabase.from("documents").delete().eq("id", doc.id)
           if (storedFilePath) {
-            await supabase.storage.from("documents").remove([storedFilePath])
+            await serviceClient.storage.from("documents").remove([storedFilePath])
           }
           results.push({
             fileId: file.id,

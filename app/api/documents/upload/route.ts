@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase-server"
 import { createEmbeddings } from "@/lib/embeddings"
 import {
   processDocument,
@@ -62,6 +63,9 @@ export async function POST(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+
+    // Create service client for storage operations (bypasses RLS)
+    const serviceClient = await createServiceClient()
     
     const formData = await request.formData()
     const file = formData.get("file") as File | null
@@ -103,10 +107,10 @@ export async function POST(request: NextRequest) {
     const uniqueFileName = `${crypto.randomUUID()}.${fileExtension}`
     const filePath = `uploads/${uniqueFileName}`
 
-    // Upload file to Supabase Storage
+    // Upload file to Supabase Storage (using service client to bypass RLS)
     let storedFilePath: string | null = null
     try {
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await serviceClient.storage
         .from("documents")
         .upload(filePath, buffer, {
           contentType: file.type,
@@ -141,7 +145,7 @@ export async function POST(request: NextRequest) {
       console.error("Error inserting document:", docError)
       // Clean up uploaded file if document insert fails
       if (storedFilePath) {
-        await supabase.storage.from("documents").remove([storedFilePath])
+        await serviceClient.storage.from("documents").remove([storedFilePath])
       }
       return NextResponse.json(
         { error: "Failed to save document record" },
@@ -170,7 +174,7 @@ export async function POST(request: NextRequest) {
       // Clean up the document record and stored file if chunks fail
       await supabase.from("documents").delete().eq("id", document.id)
       if (storedFilePath) {
-        await supabase.storage.from("documents").remove([storedFilePath])
+        await serviceClient.storage.from("documents").remove([storedFilePath])
       }
       return NextResponse.json(
         { error: "Failed to process document chunks" },

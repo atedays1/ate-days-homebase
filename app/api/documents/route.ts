@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { requireAuth } from "@/lib/api-auth"
 
-// GET - List all documents with tags
-export async function GET() {
+// GET - List all documents with tags, or specific documents by IDs
+export async function GET(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
@@ -15,11 +15,22 @@ export async function GET() {
       })
     }
 
-    // Fetch documents
-    const { data: documents, error } = await supabase
-      .from("documents")
-      .select("*")
-      .order("created_at", { ascending: false })
+    const { searchParams } = new URL(request.url)
+    const idsParam = searchParams.get("ids")
+
+    // Fetch documents (optionally filtered by IDs)
+    let query = supabase.from("documents").select("*")
+    
+    if (idsParam) {
+      // Fetch specific documents by IDs
+      const ids = idsParam.split(",").filter(id => id.trim())
+      query = query.in("id", ids)
+    } else {
+      // Fetch all documents ordered by date
+      query = query.order("created_at", { ascending: false })
+    }
+    
+    const { data: documents, error } = await query
 
     if (error) {
       console.error("Error fetching documents:", error)

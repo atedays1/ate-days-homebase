@@ -1,11 +1,18 @@
 "use client"
 
-import { useState, FormEvent } from "react"
-import { Search, Loader2, FileText, ExternalLink, ChevronDown, ChevronUp } from "lucide-react"
+import { useState, FormEvent, useEffect } from "react"
+import { Search, Loader2, FileText, ExternalLink, ChevronDown, ChevronUp, Eye, Table } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
+import dynamic from "next/dynamic"
+
+// Load DocumentViewer only on client side
+const DocumentViewer = dynamic(
+  () => import("@/components/document-viewer").then(mod => mod.DocumentViewer),
+  { ssr: false }
+)
 
 interface Source {
   documentId: string
@@ -19,12 +26,60 @@ interface SearchResult {
   sources: Source[]
 }
 
+interface ViewingDocument {
+  id: string
+  name: string
+  type: string
+}
+
 export function DocumentSearch() {
   const [query, setQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [result, setResult] = useState<SearchResult | null>(null)
   const [showSources, setShowSources] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [viewingDocument, setViewingDocument] = useState<ViewingDocument | null>(null)
+  const [documentTypes, setDocumentTypes] = useState<Record<string, string>>({})
+
+  // Fetch document types when sources change
+  useEffect(() => {
+    if (!result?.sources) return
+    
+    const fetchTypes = async () => {
+      const ids = result.sources
+        .filter(s => s.documentId !== "timeline")
+        .map(s => s.documentId)
+      
+      if (ids.length === 0) return
+      
+      try {
+        const response = await fetch(`/api/documents?ids=${ids.join(",")}`)
+        if (response.ok) {
+          const data = await response.json()
+          const types: Record<string, string> = {}
+          for (const doc of data.documents || []) {
+            types[doc.id] = doc.type
+          }
+          setDocumentTypes(types)
+        }
+      } catch (err) {
+        console.error("Failed to fetch document types:", err)
+      }
+    }
+    
+    fetchTypes()
+  }, [result?.sources])
+
+  const handleOpenDocument = (source: Source) => {
+    // Don't open timeline as a document
+    if (source.documentId === "timeline") return
+    
+    setViewingDocument({
+      id: source.documentId,
+      name: source.documentName,
+      type: documentTypes[source.documentId] || "PDF",
+    })
+  }
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault()
@@ -149,27 +204,46 @@ export function DocumentSearch() {
                 {/* Sources List */}
                 {showSources && (
                   <div className="mt-2 space-y-2">
-                    {result.sources.map((source, i) => (
-                      <div
-                        key={`${source.documentId}-${i}`}
-                        className="p-3 bg-neutral-50/50 border border-neutral-100 rounded-lg"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <FileText className="h-3 w-3 text-neutral-400" />
-                          <span className="text-[11px] font-medium text-neutral-600">
-                            {source.documentName}
-                          </span>
-                          {source.pageNumber && (
-                            <span className="text-[10px] text-neutral-400">
-                              Page {source.pageNumber}
-                            </span>
-                          )}
+                    {result.sources.map((source, i) => {
+                      const isTimeline = source.documentId === "timeline"
+                      const isClickable = !isTimeline
+                      
+                      return (
+                        <div
+                          key={`${source.documentId}-${i}`}
+                          onClick={() => isClickable && handleOpenDocument(source)}
+                          className={`p-3 bg-neutral-50/50 border border-neutral-100 rounded-lg transition-colors ${
+                            isClickable 
+                              ? "cursor-pointer hover:bg-neutral-100/50 hover:border-neutral-200" 
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              {isTimeline ? (
+                                <Table className="h-3 w-3 text-emerald-500" />
+                              ) : (
+                                <FileText className="h-3 w-3 text-neutral-400" />
+                              )}
+                              <span className="text-[11px] font-medium text-neutral-600">
+                                {source.documentName}
+                              </span>
+                              {source.pageNumber && (
+                                <span className="text-[10px] text-neutral-400">
+                                  Page {source.pageNumber}
+                                </span>
+                              )}
+                            </div>
+                            {isClickable && (
+                              <Eye className="h-3 w-3 text-neutral-400" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-neutral-500 line-clamp-2">
+                            {source.excerpt}
+                          </p>
                         </div>
-                        <p className="text-[11px] text-neutral-500 line-clamp-2">
-                          {source.excerpt}
-                        </p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -186,6 +260,16 @@ export function DocumentSearch() {
               </Link>
             </div>
           </div>
+        )}
+
+        {/* Document Viewer Modal */}
+        {viewingDocument && (
+          <DocumentViewer
+            documentId={viewingDocument.id}
+            documentName={viewingDocument.name}
+            documentType={viewingDocument.type}
+            onClose={() => setViewingDocument(null)}
+          />
         )}
       </CardContent>
     </Card>

@@ -91,6 +91,11 @@ export default function DocumentsPage() {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [contentPreview, setContentPreview] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+  
+  // Deep search state
+  const [searchResults, setSearchResults] = useState<Document[] | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null)
 
   // Persist view mode
   useEffect(() => {
@@ -138,6 +143,56 @@ export default function DocumentsPage() {
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
+
+  // Deep search function
+  const performDeepSearch = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setSearchResults(null)
+      setIsSearching(false)
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const response = await fetch(`/api/documents/search?q=${encodeURIComponent(query)}`)
+      if (response.ok) {
+        const data = await response.json()
+        setSearchResults(data.results || [])
+      } else {
+        // Fallback to client-side filtering if search fails
+        setSearchResults(null)
+      }
+    } catch (error) {
+      console.error("Search error:", error)
+      setSearchResults(null)
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  // Debounced search handler
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value)
+    
+    // Clear previous timer
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer)
+    }
+
+    // If query is empty, clear search results immediately
+    if (!value.trim()) {
+      setSearchResults(null)
+      setIsSearching(false)
+      return
+    }
+
+    // Debounce deep search (wait 300ms after typing stops)
+    const timer = setTimeout(() => {
+      performDeepSearch(value)
+    }, 300)
+    
+    setSearchDebounceTimer(timer)
+  }, [searchDebounceTimer, performDeepSearch])
 
   const handleDelete = async (id: string) => {
     try {
@@ -208,18 +263,8 @@ export default function DocumentsPage() {
 
   // Filter and sort documents
   const filteredDocuments = useMemo(() => {
-    let filtered = [...documents]
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(doc => 
-        doc.name.toLowerCase().includes(query) ||
-        doc.type.toLowerCase().includes(query) ||
-        doc.summary?.toLowerCase().includes(query) ||
-        doc.tags?.some(tag => tag.toLowerCase().includes(query))
-      )
-    }
+    // Use search results if available (deep search was performed)
+    let filtered = searchResults !== null ? [...searchResults] : [...documents]
 
     // Type filter
     if (selectedType !== "all") {
@@ -233,26 +278,28 @@ export default function DocumentsPage() {
       )
     }
 
-    // Sort
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case "oldest":
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case "name-asc":
-          return a.name.localeCompare(b.name)
-        case "name-desc":
-          return b.name.localeCompare(a.name)
-        case "size":
-          return b.size - a.size
-        default:
-          return 0
-      }
-    })
+    // Sort (only if not using search results, which are already sorted by relevance)
+    if (searchResults === null) {
+      filtered.sort((a, b) => {
+        switch (sortBy) {
+          case "newest":
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          case "oldest":
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          case "name-asc":
+            return a.name.localeCompare(b.name)
+          case "name-desc":
+            return b.name.localeCompare(a.name)
+          case "size":
+            return b.size - a.size
+          default:
+            return 0
+        }
+      })
+    }
 
     return filtered
-  }, [documents, searchQuery, selectedType, selectedTags, sortBy])
+  }, [documents, searchResults, selectedType, selectedTags, sortBy])
 
   // Get available types from documents
   const availableTypes = useMemo(() => {
@@ -357,20 +404,30 @@ export default function DocumentsPage() {
             <Input
               id="doc-search"
               type="text"
-              placeholder="Search documents... (⌘K)"
+              placeholder="Search document contents... (⌘K)"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-9 pr-4 h-9 text-[13px] bg-neutral-50 border-neutral-200 focus:bg-white"
             />
-            {searchQuery && (
+            {isSearching && (
+              <Loader2 className="absolute right-9 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-neutral-400" />
+            )}
+            {searchQuery && !isSearching && (
               <button
-                onClick={() => setSearchQuery("")}
+                onClick={() => handleSearchChange("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
+          
+          {/* Search status indicator */}
+          {searchResults !== null && !isSearching && (
+            <div className="text-[12px] text-neutral-500">
+              <span className="font-medium text-neutral-700">{searchResults.length}</span> results for "{searchQuery}"
+            </div>
+          )}
 
           {/* View Toggle & Sort */}
           <div className="flex items-center gap-2">
@@ -533,7 +590,7 @@ export default function DocumentsPage() {
                   variant="outline"
                   className="mt-4" 
                   onClick={() => {
-                    setSearchQuery("")
+                    handleSearchChange("")
                     setSelectedType("all")
                     setSelectedTags([])
                   }}

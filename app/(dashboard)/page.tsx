@@ -148,10 +148,10 @@ export default function HomePage() {
   }
 
   return (
-    <div className="p-6 lg:p-10 max-w-7xl">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-7xl">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold text-neutral-900">Overview</h1>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-lg sm:text-xl font-semibold text-neutral-900">Overview</h1>
         <p className="mt-1 text-[13px] text-neutral-500">
           Key metrics and priorities for Ate Days
         </p>

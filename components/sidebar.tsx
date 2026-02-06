@@ -13,6 +13,7 @@ import {
   BarChart3,
   Users,
   LogOut,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -32,10 +33,22 @@ const adminNavigation = [
   { name: "User Management", href: "/admin/users", icon: Users },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, userAccess, signOut } = useAuth()
+
+  // Close sidebar on mobile when a link is clicked
+  const handleLinkClick = () => {
+    if (onClose) {
+      onClose()
+    }
+  }
 
   const isAdmin = userAccess?.role === "admin"
 
@@ -53,10 +66,18 @@ export function Sidebar() {
   }
 
   return (
-    <div className="relative z-10 flex h-full w-56 shrink-0 flex-col bg-[#0a0a0a] border-r border-white/[0.08]">
+    <div 
+      className={cn(
+        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-[#0a0a0a] border-r border-white/[0.08] transition-transform duration-300 ease-in-out",
+        // Desktop: always visible, positioned relative
+        "md:relative md:z-10 md:w-56 md:translate-x-0",
+        // Mobile: slide in/out
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}
+    >
       {/* Logo / Brand */}
-      <div className="flex h-14 items-center px-4">
-        <Link href="/" className="flex items-center gap-2.5">
+      <div className="flex h-14 items-center justify-between px-4">
+        <Link href="/" className="flex items-center gap-2.5" onClick={handleLinkClick}>
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white">
             <span className="text-sm font-bold text-black">A</span>
           </div>
@@ -64,10 +85,20 @@ export function Sidebar() {
             AteDays Homebase
           </span>
         </Link>
+        {/* Close button - mobile only */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white md:hidden"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-2">
+      <nav className="flex-1 overflow-y-auto px-2 py-2">
         <ul className="space-y-0.5">
           {navigation.map((item) => {
             const isActive = pathname === item.href
@@ -75,6 +106,7 @@ export function Sidebar() {
               <li key={item.name}>
                 <Link
                   href={item.href}
+                  onClick={handleLinkClick}
                   className={cn(
                     "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150",
                     isActive
@@ -104,6 +136,7 @@ export function Sidebar() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
+                      onClick={handleLinkClick}
                       className={cn(
                         "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150",
                         isActive

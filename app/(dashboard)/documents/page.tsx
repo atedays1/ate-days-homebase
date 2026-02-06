@@ -424,20 +424,21 @@ export default function DocumentsPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b border-neutral-200 bg-white px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-neutral-900">Documents</h1>
+      <div className="border-b border-neutral-200 bg-white px-4 sm:px-6 py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold text-neutral-900">Documents</h1>
             <p className="mt-0.5 text-[13px] text-neutral-500">
               {documents.length} document{documents.length !== 1 ? "s" : ""} in your library
             </p>
           </div>
           <Button 
             onClick={() => setShowUpload(!showUpload)}
-            className="gap-2"
+            className="gap-2 shrink-0"
+            size="sm"
           >
             {showUpload ? <X className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
-            {showUpload ? "Close" : "Upload"}
+            <span className="hidden sm:inline">{showUpload ? "Close" : "Upload"}</span>
           </Button>
         </div>
       </div>
@@ -475,10 +476,10 @@ export default function DocumentsPage() {
       )}
 
       {/* Search and Filters */}
-      <div className="border-b border-neutral-200 bg-white px-6 py-3">
+      <div className="border-b border-neutral-200 bg-white px-4 sm:px-6 py-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 sm:max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
             <Input
               id="doc-search"
@@ -632,7 +633,7 @@ export default function DocumentsPage() {
       </div>
 
       {/* Document Grid/List */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />

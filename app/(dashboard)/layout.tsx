@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase-server"
-import { Sidebar } from "@/components/sidebar"
+import { DashboardShell } from "@/components/dashboard-shell"
 import { AuthProvider } from "@/lib/auth-context"
 
 export default async function DashboardLayout({
@@ -55,12 +55,9 @@ export default async function DashboardLayout({
 
   return (
     <AuthProvider initialUser={initialUser} initialAccess={initialAccess}>
-      <div className="flex h-screen overflow-hidden bg-white">
-        <Sidebar />
-        <main className="relative flex-1 overflow-auto bg-[#fafafa]">
-          {children}
-        </main>
-      </div>
+      <DashboardShell>
+        {children}
+      </DashboardShell>
     </AuthProvider>
   )
 }

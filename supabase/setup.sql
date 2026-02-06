@@ -10,6 +10,7 @@ create table if not exists documents (
   name text not null,
   type text not null,
   size integer,
+  file_path text,  -- Path in Supabase Storage for viewing original file
   created_at timestamp with time zone default now()
 );
 
@@ -205,11 +206,14 @@ create policy "Allow all for service role" on user_access
   for all using (true) with check (true);
 
 -- =====================================================
--- DOCUMENT ENHANCEMENTS (Summary & Tags)
+-- DOCUMENT ENHANCEMENTS (Summary, Tags & File Storage)
 -- =====================================================
 
 -- Add summary column to documents table for per-document AI summaries
 alter table documents add column if not exists summary text;
+
+-- Add file_path column for storing original files in Supabase Storage
+alter table documents add column if not exists file_path text;
 
 -- Create document_tags table for categorization
 create table if not exists document_tags (

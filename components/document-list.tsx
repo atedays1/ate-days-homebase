@@ -8,7 +8,7 @@ import {
   File, 
   Loader2,
   MoreHorizontal,
-  ExternalLink,
+  Eye,
   FileType
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -30,6 +30,7 @@ interface DocumentListProps {
   isLoading?: boolean
   viewMode?: "grid" | "list"
   onSelect?: (doc: Document) => void
+  onOpen?: (doc: Document) => void
   selectedId?: string
 }
 
@@ -87,6 +88,7 @@ export function DocumentList({
   isLoading,
   viewMode = "grid",
   onSelect,
+  onOpen,
   selectedId
 }: DocumentListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -101,6 +103,12 @@ export function DocumentList({
     } finally {
       setDeletingId(null)
     }
+  }
+
+  const handleOpen = (doc: Document, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    setMenuOpenId(null)
+    onOpen?.(doc)
   }
 
   if (isLoading) {
@@ -137,6 +145,7 @@ export function DocumentList({
             <div
               key={doc.id}
               onClick={() => onSelect?.(doc)}
+              onDoubleClick={(e) => handleOpen(doc, e)}
               className={cn(
                 "group relative flex cursor-pointer flex-col rounded-xl border bg-white p-4 transition-all hover:shadow-md",
                 isSelected 
@@ -176,6 +185,15 @@ export function DocumentList({
                         }} 
                       />
                       <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+                        {onOpen && (
+                          <button
+                            onClick={(e) => handleOpen(doc, e)}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-neutral-700 hover:bg-neutral-50"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Open
+                          </button>
+                        )}
                         <button
                           onClick={(e) => handleDelete(doc.id, e)}
                           className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50"
@@ -252,8 +270,9 @@ export function DocumentList({
           <div
             key={doc.id}
             onClick={() => onSelect?.(doc)}
+            onDoubleClick={(e) => handleOpen(doc, e)}
             className={cn(
-              "flex cursor-pointer items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50",
+              "group flex cursor-pointer items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50",
               isSelected && "bg-neutral-50",
               isDeleting && "opacity-50 pointer-events-none"
             )}
@@ -274,19 +293,31 @@ export function DocumentList({
               </p>
             </div>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 text-neutral-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
-              onClick={(e) => handleDelete(doc.id, e)}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+              {onOpen && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-neutral-400 hover:text-neutral-600"
+                  onClick={(e) => handleOpen(doc, e)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
               )}
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-neutral-400 hover:text-red-600"
+                onClick={(e) => handleDelete(doc.id, e)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
         )
       })}

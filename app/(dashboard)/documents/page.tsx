@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { UploadZone } from "@/components/upload-zone"
 import { DocumentList } from "@/components/document-list"
 import { DocumentPreview } from "@/components/document-preview"
+import { DocumentViewer } from "@/components/document-viewer"
 import { GoogleDrivePicker } from "@/components/google-drive-picker"
 import { 
   Search, 
@@ -96,6 +97,9 @@ export default function DocumentsPage() {
   const [searchResults, setSearchResults] = useState<Document[] | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null)
+
+  // Document viewer state
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null)
 
   // Persist view mode
   useEffect(() => {
@@ -340,6 +344,11 @@ export default function DocumentsPage() {
     } finally {
       setLoadingPreview(false)
     }
+  }, [])
+
+  // Open document in full viewer
+  const handleOpenDocument = useCallback((doc: Document) => {
+    setViewingDocument(doc)
   }, [])
 
   return (
@@ -607,6 +616,7 @@ export default function DocumentsPage() {
             isLoading={false}
             viewMode={viewMode}
             onSelect={handleSelectDocument}
+            onOpen={handleOpenDocument}
             selectedId={selectedDocument?.id}
           />
         )}
@@ -625,9 +635,23 @@ export default function DocumentsPage() {
             onClose={() => setSelectedDocument(null)}
             onDelete={handleDelete}
             onTagsUpdated={fetchDocuments}
+            onOpenViewer={() => {
+              setViewingDocument(selectedDocument)
+              setSelectedDocument(null)
+            }}
             contentPreview={contentPreview || undefined}
           />
         </>
+      )}
+
+      {/* Full Document Viewer Modal */}
+      {viewingDocument && (
+        <DocumentViewer
+          documentId={viewingDocument.id}
+          documentName={viewingDocument.name}
+          documentType={viewingDocument.type}
+          onClose={() => setViewingDocument(null)}
+        />
       )}
     </div>
   )

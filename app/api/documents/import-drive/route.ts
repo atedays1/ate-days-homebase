@@ -137,6 +137,35 @@ export async function POST(request: NextRequest) {
         // Determine file type for metadata
         const fileType = getGoogleFileTypeLabel(file.mimeType)
 
+        // Determine file extension from mime type or original name
+        let fileExtension = downloadedFile.name.split('.').pop() || 'bin'
+        if (downloadedFile.mimeType === 'application/pdf') fileExtension = 'pdf'
+        else if (downloadedFile.mimeType === 'text/csv') fileExtension = 'csv'
+        else if (downloadedFile.mimeType.includes('spreadsheet')) fileExtension = 'xlsx'
+
+        // Generate unique file path and upload to Supabase Storage
+        const uniqueFileName = `${crypto.randomUUID()}.${fileExtension}`
+        const filePath = `uploads/${uniqueFileName}`
+        let storedFilePath: string | null = null
+
+        try {
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("documents")
+            .upload(filePath, downloadedFile.content, {
+              contentType: downloadedFile.mimeType,
+              upsert: false,
+            })
+
+          if (uploadError) {
+            console.error("Storage upload error for Drive import:", uploadError)
+          } else {
+            storedFilePath = uploadData.path
+            console.log("Drive file uploaded to storage:", storedFilePath)
+          }
+        } catch (storageErr) {
+          console.error("Storage upload failed for Drive import:", storageErr)
+        }
+
         // Create document record
         const { data: doc, error: docError } = await supabase
           .from("documents")
@@ -144,12 +173,17 @@ export async function POST(request: NextRequest) {
             name: downloadedFile.name,
             type: fileType,
             size: downloadedFile.content.length,
+            file_path: storedFilePath,
           })
           .select()
           .single()
 
         if (docError) {
           console.error("Error creating document:", docError)
+          // Clean up stored file if document creation fails
+          if (storedFilePath) {
+            await supabase.storage.from("documents").remove([storedFilePath])
+          }
           results.push({
             fileId: file.id,
             fileName: file.name,
@@ -175,8 +209,11 @@ export async function POST(request: NextRequest) {
 
         if (chunksError) {
           console.error("Error creating chunks:", chunksError)
-          // Clean up the document if chunks failed
+          // Clean up the document and stored file if chunks failed
           await supabase.from("documents").delete().eq("id", doc.id)
+          if (storedFilePath) {
+            await supabase.storage.from("documents").remove([storedFilePath])
+          }
           results.push({
             fileId: file.id,
             fileName: file.name,

@@ -98,6 +98,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Generate a unique file path for storage
+    const fileExtension = file.name.split('.').pop() || 'bin'
+    const uniqueFileName = `${crypto.randomUUID()}.${fileExtension}`
+    const filePath = `uploads/${uniqueFileName}`
+
+    // Upload file to Supabase Storage
+    let storedFilePath: string | null = null
+    try {
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, buffer, {
+          contentType: file.type,
+          upsert: false,
+        })
+
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError)
+        // Continue without file storage - text extraction still works
+      } else {
+        storedFilePath = uploadData.path
+        console.log("File uploaded to storage:", storedFilePath)
+      }
+    } catch (storageErr) {
+      console.error("Storage upload failed:", storageErr)
+      // Continue without file storage
+    }
+
     // Insert document record
     const { data: document, error: docError } = await supabase
       .from("documents")
@@ -105,12 +132,17 @@ export async function POST(request: NextRequest) {
         name: file.name,
         type: getFileType(file.type),
         size: file.size,
+        file_path: storedFilePath,
       })
       .select()
       .single()
 
     if (docError) {
       console.error("Error inserting document:", docError)
+      // Clean up uploaded file if document insert fails
+      if (storedFilePath) {
+        await supabase.storage.from("documents").remove([storedFilePath])
+      }
       return NextResponse.json(
         { error: "Failed to save document record" },
         { status: 500 }
@@ -135,8 +167,11 @@ export async function POST(request: NextRequest) {
 
     if (chunksError) {
       console.error("Error inserting chunks:", chunksError)
-      // Clean up the document record if chunks fail
+      // Clean up the document record and stored file if chunks fail
       await supabase.from("documents").delete().eq("id", document.id)
+      if (storedFilePath) {
+        await supabase.storage.from("documents").remove([storedFilePath])
+      }
       return NextResponse.json(
         { error: "Failed to process document chunks" },
         { status: 500 }

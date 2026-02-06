@@ -13,7 +13,8 @@ import {
   Trash2,
   MessageSquare,
   Loader2,
-  ChevronRight
+  ChevronRight,
+  Eye
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -33,6 +34,7 @@ interface DocumentPreviewProps {
   onClose: () => void
   onDelete: (id: string) => Promise<void>
   onTagsUpdated?: () => void
+  onOpenViewer?: () => void
   contentPreview?: string
 }
 
@@ -103,6 +105,7 @@ export function DocumentPreview({
   onClose, 
   onDelete,
   onTagsUpdated,
+  onOpenViewer,
   contentPreview 
 }: DocumentPreviewProps) {
   const [isDeleting, setIsDeleting] = useState(false)
@@ -199,6 +202,17 @@ export function DocumentPreview({
               </p>
             </div>
           </div>
+          
+          {/* Open Document Button */}
+          {onOpenViewer && (
+            <Button
+              onClick={onOpenViewer}
+              className="w-full mt-4 gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              Open Document
+            </Button>
+          )}
         </div>
 
         {/* Metadata */}

@@ -30,7 +30,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DocumentSearch } from "@/components/document-search"
-import { useTimeline, getActionableTasks, getNextMilestone } from "@/hooks/use-timeline"
+import { useTimeline, getActionableTasks, getUpcomingMilestones } from "@/hooks/use-timeline"
 import { MONTHS, TimelineTask, getWorkstreamConfig } from "@/lib/timeline-types"
 import { supabase } from "@/lib/supabase"
 
@@ -127,7 +127,7 @@ export default function HomePage() {
 
   // Get action items from timeline
   const actionItems = getActionableTasks(tasks).slice(0, 5)
-  const nextMilestone = getNextMilestone(tasks)
+  const upcomingMilestones = getUpcomingMilestones(tasks, 4)
 
   // Calculate milestone date
   const getMilestoneDate = (month: number): string => {
@@ -453,7 +453,7 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        {/* Next Major Milestone */}
+        {/* Upcoming Milestones */}
         <Card className="border border-neutral-200/60 shadow-none bg-white">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
@@ -462,10 +462,10 @@ export default function HomePage() {
               </div>
               <div>
                 <CardTitle className="text-[13px] font-medium text-neutral-900">
-                  Next Milestone
+                  Upcoming Milestones
                 </CardTitle>
                 <CardDescription className="text-[11px] text-neutral-400">
-                  Upcoming phase
+                  {upcomingMilestones.length} upcoming
                 </CardDescription>
               </div>
             </div>
@@ -475,7 +475,7 @@ export default function HomePage() {
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
               </div>
-            ) : !isConnected || !nextMilestone ? (
+            ) : !isConnected || upcomingMilestones.length === 0 ? (
               <div className="rounded-lg border border-neutral-100 bg-neutral-50/50 p-4">
                 <div className="flex items-center gap-2 text-neutral-500">
                   <Rocket className="h-3.5 w-3.5" />
@@ -501,35 +501,44 @@ export default function HomePage() {
                 </div>
               </div>
             ) : (
-              <div 
-                className="rounded-lg border p-4"
-                style={{ 
-                  backgroundColor: getWorkstreamConfig(nextMilestone.workstream)?.bgColor || "#f5f5f5",
-                  borderColor: getWorkstreamConfig(nextMilestone.workstream)?.bgColor || "#e5e5e5"
-                }}
-              >
-                <div className="flex items-center gap-2" style={{ color: getWorkstreamConfig(nextMilestone.workstream)?.color }}>
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium uppercase tracking-wider">
-                    {getWorkstreamConfig(nextMilestone.workstream)?.label || "Task"}
-                  </span>
-                </div>
-                <h3 className="mt-2 text-[13px] font-medium text-neutral-900">
-                  {nextMilestone.name}
-                </h3>
-                <p className="mt-1 text-[12px] text-neutral-500 leading-relaxed">
-                  Starting {getMilestoneDate(nextMilestone.month)}
-                </p>
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="flex h-5 items-center rounded-full bg-neutral-900 px-2">
-                    <span className="text-[10px] font-medium text-white">
-                      {getMilestoneDate(nextMilestone.month)}
-                    </span>
+              <div className="space-y-2">
+                {upcomingMilestones.map((milestone, index) => (
+                  <div 
+                    key={`${milestone.name}-${index}`}
+                    className="rounded-lg border p-3"
+                    style={{ 
+                      backgroundColor: getWorkstreamConfig(milestone.workstream)?.bgColor || "#f5f5f5",
+                      borderColor: getWorkstreamConfig(milestone.workstream)?.bgColor || "#e5e5e5"
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2" style={{ color: getWorkstreamConfig(milestone.workstream)?.color }}>
+                          <span className="text-[9px] font-medium uppercase tracking-wider">
+                            {getWorkstreamConfig(milestone.workstream)?.label || "Task"}
+                          </span>
+                        </div>
+                        <h3 className="mt-1 text-[12px] font-medium text-neutral-900 truncate">
+                          {milestone.name}
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-2 ml-3 shrink-0">
+                        <div className="flex h-5 items-center rounded-full bg-neutral-900 px-2">
+                          <span className="text-[9px] font-medium text-white">
+                            {getMilestoneDate(milestone.month)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[11px] text-neutral-400">
-                    ~{getDaysUntil(nextMilestone.month)} days away
-                  </span>
-                </div>
+                ))}
+                <Link
+                  href="/timeline"
+                  className="flex items-center gap-1.5 text-[11px] text-neutral-500 hover:text-neutral-900 pt-1"
+                >
+                  View full timeline
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
               </div>
             )}
           </CardContent>

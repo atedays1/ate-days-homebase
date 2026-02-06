@@ -162,24 +162,32 @@ export function getActionableTasks(tasks: TimelineTask[]): TimelineTask[] {
   return inProgress.sort((a, b) => a.endMonth - b.endMonth)
 }
 
-// Get next milestone (first upcoming task)
+// Get next milestone (first upcoming task) - kept for backwards compatibility
 export function getNextMilestone(tasks: TimelineTask[]): {
   name: string
   month: number
   workstream: TimelineTask["workstream"]
 } | null {
-  // Find the next phase that has upcoming tasks
+  const milestones = getUpcomingMilestones(tasks, 1)
+  return milestones.length > 0 ? milestones[0] : null
+}
+
+// Get multiple upcoming milestones
+export function getUpcomingMilestones(tasks: TimelineTask[], limit: number = 5): {
+  name: string
+  month: number
+  workstream: TimelineTask["workstream"]
+}[] {
+  // Find upcoming tasks
   const upcomingTasks = tasks.filter((t) => t.status === "upcoming")
-  if (upcomingTasks.length === 0) return null
+  if (upcomingTasks.length === 0) return []
 
-  // Find the earliest upcoming task
-  const earliest = upcomingTasks.reduce((min, t) =>
-    t.startMonth < min.startMonth ? t : min
-  )
-
-  return {
-    name: earliest.name,
-    month: earliest.startMonth,
-    workstream: earliest.workstream,
-  }
+  // Sort by start month and take the first N
+  const sorted = upcomingTasks.sort((a, b) => a.startMonth - b.startMonth)
+  
+  return sorted.slice(0, limit).map(t => ({
+    name: t.name,
+    month: t.startMonth,
+    workstream: t.workstream,
+  }))
 }

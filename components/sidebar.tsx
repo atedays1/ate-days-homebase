@@ -40,10 +40,12 @@ export function Sidebar() {
   const isAdmin = userAccess?.role === "admin"
 
   const handleSignOut = () => {
-    // Sign out and redirect immediately
-    signOut().finally(() => {
+    // Clear local state and redirect
+    signOut()
+    // Force redirect after a brief delay to ensure cleanup
+    setTimeout(() => {
       window.location.href = "/login"
-    })
+    }, 100)
   }
 
   return (

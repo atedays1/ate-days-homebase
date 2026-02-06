@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils"
 // In the future, replace with proper Google Workspace auth
 const ADMIN_PARAM = "admin"
 
-export default function TimelinePage() {
+function TimelineContent() {
   const searchParams = useSearchParams()
   const isAdmin = searchParams.get(ADMIN_PARAM) === "true"
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null)
@@ -368,5 +368,17 @@ export default function TimelinePage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function TimelinePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
+      </div>
+    }>
+      <TimelineContent />
+    </Suspense>
   )
 }

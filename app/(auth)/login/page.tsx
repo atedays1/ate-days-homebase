@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Loader2 } from "lucide-react"
 
-export default function LoginPage() {
+function LoginContent() {
   const { user, userAccess, loading, signInWithGoogle } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -96,5 +96,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-[#fafafa]">
+        <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }

@@ -1,7 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { FileText, Trash2, FileSpreadsheet, File, Loader2 } from "lucide-react"
+import { 
+  FileText, 
+  Trash2, 
+  FileSpreadsheet, 
+  File, 
+  Loader2,
+  MoreHorizontal,
+  ExternalLink,
+  FileType
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -11,12 +20,17 @@ interface Document {
   type: string
   size: number
   created_at: string
+  summary?: string
+  tags?: string[]
 }
 
 interface DocumentListProps {
   documents: Document[]
   onDelete: (id: string) => Promise<void>
   isLoading?: boolean
+  viewMode?: "grid" | "list"
+  onSelect?: (doc: Document) => void
+  selectedId?: string
 }
 
 function formatFileSize(bytes: number): string {
@@ -42,17 +56,46 @@ function getFileIcon(type: string) {
       return FileText
     case "Excel":
     case "CSV":
+    case "Google Sheet":
       return FileSpreadsheet
+    case "Google Doc":
+      return FileType
     default:
       return File
   }
 }
 
-export function DocumentList({ documents, onDelete, isLoading }: DocumentListProps) {
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+function getFileColors(type: string) {
+  switch (type) {
+    case "PDF":
+      return { bg: "bg-red-50", text: "text-red-600", badge: "bg-red-100 text-red-700" }
+    case "Excel":
+    case "Google Sheet":
+      return { bg: "bg-emerald-50", text: "text-emerald-600", badge: "bg-emerald-100 text-emerald-700" }
+    case "CSV":
+      return { bg: "bg-orange-50", text: "text-orange-600", badge: "bg-orange-100 text-orange-700" }
+    case "Google Doc":
+      return { bg: "bg-blue-50", text: "text-blue-600", badge: "bg-blue-100 text-blue-700" }
+    default:
+      return { bg: "bg-neutral-50", text: "text-neutral-600", badge: "bg-neutral-100 text-neutral-700" }
+  }
+}
 
-  const handleDelete = async (id: string) => {
+export function DocumentList({ 
+  documents, 
+  onDelete, 
+  isLoading,
+  viewMode = "grid",
+  onSelect,
+  selectedId
+}: DocumentListProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+
+  const handleDelete = async (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation()
     setDeletingId(id)
+    setMenuOpenId(null)
     try {
       await onDelete(id)
     } finally {
@@ -63,65 +106,179 @@ export function DocumentList({ documents, onDelete, isLoading }: DocumentListPro
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
       </div>
     )
   }
 
   if (documents.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 py-12 text-center">
-        <FileText className="mx-auto h-10 w-10 text-slate-400" />
-        <p className="mt-3 text-sm font-medium text-slate-600">No documents yet</p>
-        <p className="mt-1 text-xs text-slate-500">
+      <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 py-12 text-center">
+        <FileText className="mx-auto h-10 w-10 text-neutral-400" />
+        <p className="mt-3 text-sm font-medium text-neutral-600">No documents yet</p>
+        <p className="mt-1 text-xs text-neutral-500">
           Upload PDFs or spreadsheets to get started
         </p>
       </div>
     )
   }
 
+  // Grid View
+  if (viewMode === "grid") {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {documents.map((doc) => {
+          const Icon = getFileIcon(doc.type)
+          const colors = getFileColors(doc.type)
+          const isDeleting = deletingId === doc.id
+          const isSelected = selectedId === doc.id
+
+          return (
+            <div
+              key={doc.id}
+              onClick={() => onSelect?.(doc)}
+              className={cn(
+                "group relative flex cursor-pointer flex-col rounded-xl border bg-white p-4 transition-all hover:shadow-md",
+                isSelected 
+                  ? "border-neutral-900 ring-1 ring-neutral-900" 
+                  : "border-neutral-200 hover:border-neutral-300",
+                isDeleting && "opacity-50 pointer-events-none"
+              )}
+            >
+              {/* Icon and Menu */}
+              <div className="flex items-start justify-between">
+                <div className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-xl",
+                  colors.bg
+                )}>
+                  <Icon className={cn("h-6 w-6", colors.text)} />
+                </div>
+                
+                {/* Menu Button */}
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMenuOpenId(menuOpenId === doc.id ? null : doc.id)
+                    }}
+                    className="rounded-lg p-1.5 opacity-0 transition-opacity hover:bg-neutral-100 group-hover:opacity-100"
+                  >
+                    <MoreHorizontal className="h-4 w-4 text-neutral-500" />
+                  </button>
+                  
+                  {menuOpenId === doc.id && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setMenuOpenId(null)
+                        }} 
+                      />
+                      <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+                        <button
+                          onClick={(e) => handleDelete(doc.id, e)}
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Document Info */}
+              <div className="mt-4 flex-1">
+                <h3 className="line-clamp-2 text-[14px] font-medium text-neutral-900 leading-tight">
+                  {doc.name}
+                </h3>
+                {doc.summary && (
+                  <p className="mt-1.5 line-clamp-2 text-[12px] text-neutral-500 leading-relaxed">
+                    {doc.summary}
+                  </p>
+                )}
+              </div>
+
+              {/* Tags */}
+              {doc.tags && doc.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {doc.tags.slice(0, 2).map(tag => (
+                    <span 
+                      key={tag}
+                      className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                  {doc.tags.length > 2 && (
+                    <span className="text-[10px] text-neutral-400">
+                      +{doc.tags.length - 2}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="mt-3 flex items-center justify-between pt-3 border-t border-neutral-100">
+                <span className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  colors.badge
+                )}>
+                  {doc.type}
+                </span>
+                <span className="text-[11px] text-neutral-400">
+                  {formatDate(doc.created_at)}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // List View
   return (
-    <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+    <div className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white">
       {documents.map((doc) => {
         const Icon = getFileIcon(doc.type)
+        const colors = getFileColors(doc.type)
         const isDeleting = deletingId === doc.id
+        const isSelected = selectedId === doc.id
 
         return (
           <div
             key={doc.id}
+            onClick={() => onSelect?.(doc)}
             className={cn(
-              "flex items-center gap-4 px-4 py-3 transition-colors",
-              isDeleting && "opacity-50"
+              "flex cursor-pointer items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50",
+              isSelected && "bg-neutral-50",
+              isDeleting && "opacity-50 pointer-events-none"
             )}
           >
-            <div
-              className={cn(
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                doc.type === "PDF" && "bg-red-50",
-                (doc.type === "Excel" || doc.type === "CSV") && "bg-emerald-50"
-              )}
-            >
-              <Icon
-                className={cn(
-                  "h-5 w-5",
-                  doc.type === "PDF" && "text-red-600",
-                  (doc.type === "Excel" || doc.type === "CSV") && "text-emerald-600"
-                )}
-              />
+            <div className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+              colors.bg
+            )}>
+              <Icon className={cn("h-5 w-5", colors.text)} />
             </div>
+            
             <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium text-slate-900">
+              <p className="truncate text-[14px] font-medium text-neutral-900">
                 {doc.name}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-[12px] text-neutral-500">
                 {doc.type} • {formatFileSize(doc.size)} • {formatDate(doc.created_at)}
               </p>
             </div>
+
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-slate-400 hover:text-red-600"
-              onClick={() => handleDelete(doc.id)}
+              className="h-8 w-8 shrink-0 text-neutral-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+              onClick={(e) => handleDelete(doc.id, e)}
               disabled={isDeleting}
             >
               {isDeleting ? (

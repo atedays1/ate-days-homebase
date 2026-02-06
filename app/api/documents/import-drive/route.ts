@@ -4,6 +4,7 @@ import { createEmbedding, createEmbeddings } from "@/lib/embeddings"
 import { processPDF, processSpreadsheet, chunkText } from "@/lib/document-processor"
 import { downloadDriveFile, getGoogleFileTypeLabel, GOOGLE_MIME_TYPES } from "@/lib/google"
 import { requireAuth } from "@/lib/api-auth"
+import { generateSingleDocumentSummary, isAnthropicConfigured } from "@/lib/anthropic"
 
 // Helper to trigger summary regeneration
 async function triggerSummaryRegeneration() {
@@ -11,6 +12,40 @@ async function triggerSummaryRegeneration() {
   await fetch(`${baseUrl}/api/documents/summarize`, {
     method: "POST",
   })
+}
+
+// Helper to generate and save document summary and tags
+async function generateDocumentSummaryAndTags(
+  documentId: string,
+  documentName: string,
+  content: string
+) {
+  try {
+    if (!isAnthropicConfigured()) {
+      return
+    }
+
+    const { summary, suggestedTags } = await generateSingleDocumentSummary(content, documentName)
+    
+    if (summary) {
+      await supabase
+        .from("documents")
+        .update({ summary })
+        .eq("id", documentId)
+    }
+    
+    if (suggestedTags && suggestedTags.length > 0) {
+      const tagRecords = suggestedTags.map(tag => ({
+        document_id: documentId,
+        tag
+      }))
+      await supabase
+        .from("document_tags")
+        .insert(tagRecords)
+    }
+  } catch (error) {
+    console.error("Failed to generate document summary/tags:", error)
+  }
 }
 
 interface DriveFileInput {
@@ -150,6 +185,11 @@ export async function POST(request: NextRequest) {
           })
           continue
         }
+
+        // Generate summary and tags in background
+        generateDocumentSummaryAndTags(doc.id, downloadedFile.name, text).catch(err => {
+          console.error("Failed to generate summary for imported doc:", err)
+        })
 
         results.push({
           fileId: file.id,

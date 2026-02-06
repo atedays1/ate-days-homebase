@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { requireAuth } from "@/lib/api-auth"
 
-// GET - List all documents
+// GET - List all documents with tags
 export async function GET() {
   try {
     // Require authenticated and approved user
@@ -15,6 +15,7 @@ export async function GET() {
       })
     }
 
+    // Fetch documents
     const { data: documents, error } = await supabase
       .from("documents")
       .select("*")
@@ -28,7 +29,24 @@ export async function GET() {
       )
     }
 
-    return NextResponse.json({ documents: documents || [] })
+    // Fetch tags for all documents
+    const { data: tags } = await supabase
+      .from("document_tags")
+      .select("document_id, tag")
+
+    // Map tags to documents
+    const tagsByDoc = (tags || []).reduce((acc, t) => {
+      if (!acc[t.document_id]) acc[t.document_id] = []
+      acc[t.document_id].push(t.tag)
+      return acc
+    }, {} as Record<string, string[]>)
+
+    const documentsWithTags = (documents || []).map(doc => ({
+      ...doc,
+      tags: tagsByDoc[doc.id] || []
+    }))
+
+    return NextResponse.json({ documents: documentsWithTags })
   } catch (error) {
     if (error instanceof Response) {
       return error

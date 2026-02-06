@@ -203,3 +203,29 @@ create policy "Allow all for service role" on document_summary
 
 create policy "Allow all for service role" on user_access
   for all using (true) with check (true);
+
+-- =====================================================
+-- DOCUMENT ENHANCEMENTS (Summary & Tags)
+-- =====================================================
+
+-- Add summary column to documents table for per-document AI summaries
+alter table documents add column if not exists summary text;
+
+-- Create document_tags table for categorization
+create table if not exists document_tags (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references documents(id) on delete cascade,
+  tag text not null,
+  created_at timestamp with time zone default now(),
+  unique(document_id, tag)
+);
+
+-- Create indexes for faster tag lookups
+create index if not exists document_tags_document_id_idx on document_tags(document_id);
+create index if not exists document_tags_tag_idx on document_tags(tag);
+
+-- Enable RLS on document_tags
+alter table document_tags enable row level security;
+
+create policy "Allow all for service role" on document_tags
+  for all using (true) with check (true);

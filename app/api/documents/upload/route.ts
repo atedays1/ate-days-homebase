@@ -8,6 +8,7 @@ import {
   isSupportedMimeType,
 } from "@/lib/document-processor"
 import { requireAuth } from "@/lib/api-auth"
+import { generateSingleDocumentSummary, isAnthropicConfigured } from "@/lib/anthropic"
 
 // Helper to trigger summary regeneration
 async function triggerSummaryRegeneration() {
@@ -15,6 +16,46 @@ async function triggerSummaryRegeneration() {
   await fetch(`${baseUrl}/api/documents/summarize`, {
     method: "POST",
   })
+}
+
+// Helper to generate and save document summary and tags
+async function generateDocumentSummaryAndTags(
+  documentId: string,
+  documentName: string,
+  content: string
+) {
+  try {
+    if (!isAnthropicConfigured()) {
+      console.log("Anthropic not configured, skipping summary generation")
+      return
+    }
+
+    const { summary, suggestedTags } = await generateSingleDocumentSummary(content, documentName)
+    
+    // Update document with summary
+    if (summary) {
+      await supabase
+        .from("documents")
+        .update({ summary })
+        .eq("id", documentId)
+    }
+    
+    // Insert tags
+    if (suggestedTags && suggestedTags.length > 0) {
+      const tagRecords = suggestedTags.map(tag => ({
+        document_id: documentId,
+        tag
+      }))
+      await supabase
+        .from("document_tags")
+        .insert(tagRecords)
+        .onConflict("document_id,tag")
+    }
+    
+    console.log(`Generated summary and ${suggestedTags.length} tags for document: ${documentName}`)
+  } catch (error) {
+    console.error("Failed to generate document summary/tags:", error)
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -102,8 +143,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Trigger summary regeneration in the background
-    // We don't await this to avoid slowing down the upload response
+    // Generate per-document summary and tags in the background
+    const allContent = chunks.map(c => c.content).join("\n\n")
+    generateDocumentSummaryAndTags(document.id, file.name, allContent).catch((err) => {
+      console.error("Failed to generate document summary:", err)
+    })
+
+    // Trigger global summary regeneration in the background
     triggerSummaryRegeneration().catch((err) => {
       console.error("Failed to trigger summary regeneration:", err)
     })

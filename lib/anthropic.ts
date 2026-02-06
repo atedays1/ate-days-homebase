@@ -200,3 +200,76 @@ Guidelines:
     throw new Error("Failed to generate valid summary from documents")
   }
 }
+
+// Generate a brief summary for a single document
+export async function generateSingleDocumentSummary(
+  content: string,
+  documentName: string
+): Promise<{ summary: string; suggestedTags: string[] }> {
+  const systemPrompt = `You are an assistant that summarizes business documents for a D2C supplement brand called Ate Days.
+
+Your task is to:
+1. Create a brief 2-3 sentence summary of the document
+2. Suggest 1-3 relevant tags from this predefined list: Marketing, Product, Finance, Legal, Research, Timeline, Brand, Operations, Sales, HR
+
+Respond ONLY with valid JSON (no markdown, no code blocks):
+{
+  "summary": "2-3 sentence summary of the document content",
+  "suggestedTags": ["Tag1", "Tag2"]
+}
+
+Guidelines:
+- Summary should capture the main purpose and key points of the document
+- Only suggest tags that are clearly relevant
+- Keep the summary professional and concise`
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-3-haiku-20240307",
+      max_tokens: 500,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: `Document name: ${documentName}\n\nContent (first 4000 characters):\n${content.slice(0, 4000)}`,
+        },
+      ],
+    })
+
+    const responseContent = message.content[0]
+    if (responseContent.type !== "text") {
+      throw new Error("Unexpected response type")
+    }
+
+    let jsonText = responseContent.text.trim()
+    
+    // Remove markdown code blocks if present
+    if (jsonText.startsWith("```json")) {
+      jsonText = jsonText.slice(7)
+    } else if (jsonText.startsWith("```")) {
+      jsonText = jsonText.slice(3)
+    }
+    if (jsonText.endsWith("```")) {
+      jsonText = jsonText.slice(0, -3)
+    }
+    jsonText = jsonText.trim()
+    
+    // Try to find JSON object in the response
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      jsonText = jsonMatch[0]
+    }
+    
+    const result = JSON.parse(jsonText) as { summary: string; suggestedTags: string[] }
+    return {
+      summary: result.summary || "",
+      suggestedTags: result.suggestedTags || []
+    }
+  } catch (error) {
+    console.error("Failed to generate single document summary:", error)
+    return {
+      summary: "",
+      suggestedTags: []
+    }
+  }
+}

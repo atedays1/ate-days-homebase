@@ -298,8 +298,8 @@ export function DocumentPreview({
             <h4 className="text-[11px] font-medium text-neutral-400 uppercase tracking-wide mb-2">
               Content Preview
             </h4>
-            <div className="rounded-lg bg-neutral-50 p-3">
-              <p className="text-[12px] text-neutral-600 leading-relaxed whitespace-pre-wrap line-clamp-[12]">
+            <div className="rounded-lg bg-neutral-50 p-3 max-h-64 overflow-y-auto">
+              <p className="text-[12px] text-neutral-600 leading-relaxed whitespace-pre-wrap">
                 {contentPreview}
               </p>
             </div>

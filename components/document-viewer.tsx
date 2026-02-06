@@ -17,14 +17,6 @@ import {
   AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Table as UITable,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 
 // Set up the PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
@@ -300,49 +292,124 @@ export function DocumentViewer({
             </div>
           )
         }
+        
+        // Helper to convert column index to letter (0 = A, 1 = B, etc.)
+        const getColumnLetter = (idx: number): string => {
+          let letter = ""
+          let temp = idx
+          while (temp >= 0) {
+            letter = String.fromCharCode((temp % 26) + 65) + letter
+            temp = Math.floor(temp / 26) - 1
+          }
+          return letter
+        }
+        
+        // Calculate max columns needed
+        const maxCols = Math.max(
+          spreadsheetData.headers.length,
+          ...spreadsheetData.rows.map(r => r.length)
+        )
+        
         return (
-          <div className="flex flex-col h-full overflow-hidden">
+          <div className="flex flex-col h-full overflow-hidden bg-white">
+            {/* Sheet tabs */}
             {spreadsheetData.sheetNames.length > 1 && (
-              <div className="flex gap-1 p-2 border-b bg-muted/30">
+              <div className="flex items-center gap-1 px-2 py-1.5 border-b bg-neutral-100">
                 {spreadsheetData.sheetNames.map((name, idx) => (
-                  <Button
+                  <button
                     key={name}
-                    variant={idx === spreadsheetData.activeSheet ? "default" : "ghost"}
-                    size="sm"
                     onClick={() => switchSheet(idx)}
+                    className={`px-4 py-1.5 text-[13px] rounded-t border-x border-t transition-colors ${
+                      idx === spreadsheetData.activeSheet
+                        ? "bg-white border-neutral-300 text-neutral-900 font-medium -mb-px"
+                        : "bg-neutral-200 border-transparent text-neutral-600 hover:bg-neutral-300"
+                    }`}
                   >
                     {name}
-                  </Button>
+                  </button>
                 ))}
               </div>
             )}
+            
+            {/* Spreadsheet grid */}
             <div className="flex-1 overflow-auto">
-              <UITable>
-                <TableHeader>
-                  <TableRow>
-                    {spreadsheetData.headers.map((header, idx) => (
-                      <TableHead key={idx} className="whitespace-nowrap">
-                        {header || `Column ${idx + 1}`}
-                      </TableHead>
+              <table className="border-collapse w-full">
+                {/* Column headers (A, B, C...) */}
+                <thead className="sticky top-0 z-20">
+                  {/* Column letter row */}
+                  <tr className="bg-neutral-100">
+                    <th className="sticky left-0 z-30 w-12 min-w-[48px] bg-neutral-200 border-b border-r border-neutral-300" />
+                    {Array.from({ length: maxCols }, (_, idx) => (
+                      <th
+                        key={idx}
+                        className="px-2 py-1 text-[11px] font-medium text-neutral-500 text-center border-b border-r border-neutral-300 bg-neutral-100 min-w-[100px]"
+                      >
+                        {getColumnLetter(idx)}
+                      </th>
                     ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {spreadsheetData.rows.slice(0, 500).map((row, rowIdx) => (
-                    <TableRow key={rowIdx}>
+                  </tr>
+                  {/* Data header row */}
+                  <tr className="bg-neutral-50">
+                    <th className="sticky left-0 z-30 w-12 min-w-[48px] bg-neutral-200 border-b border-r border-neutral-300 text-[11px] font-medium text-neutral-500">
+                      1
+                    </th>
+                    {spreadsheetData.headers.map((header, idx) => (
+                      <th
+                        key={idx}
+                        className="px-3 py-2 text-[13px] font-semibold text-neutral-800 text-left border-b border-r border-neutral-300 bg-neutral-50 whitespace-nowrap"
+                      >
+                        {header || ""}
+                      </th>
+                    ))}
+                    {/* Fill remaining columns */}
+                    {Array.from({ length: maxCols - spreadsheetData.headers.length }, (_, idx) => (
+                      <th
+                        key={`empty-${idx}`}
+                        className="px-3 py-2 border-b border-r border-neutral-300 bg-neutral-50"
+                      />
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {spreadsheetData.rows.slice(0, 1000).map((row, rowIdx) => (
+                    <tr
+                      key={rowIdx}
+                      className={rowIdx % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}
+                    >
+                      {/* Row number */}
+                      <td className="sticky left-0 z-10 w-12 min-w-[48px] bg-neutral-100 border-b border-r border-neutral-300 text-[11px] font-medium text-neutral-500 text-center">
+                        {rowIdx + 2}
+                      </td>
                       {row.map((cell, cellIdx) => (
-                        <TableCell key={cellIdx} className="whitespace-nowrap">
+                        <td
+                          key={cellIdx}
+                          className="px-3 py-1.5 text-[13px] text-neutral-700 border-b border-r border-neutral-200 whitespace-nowrap"
+                        >
                           {cell}
-                        </TableCell>
+                        </td>
                       ))}
-                    </TableRow>
+                      {/* Fill remaining columns */}
+                      {Array.from({ length: maxCols - row.length }, (_, idx) => (
+                        <td
+                          key={`empty-${idx}`}
+                          className="px-3 py-1.5 border-b border-r border-neutral-200"
+                        />
+                      ))}
+                    </tr>
                   ))}
-                </TableBody>
-              </UITable>
-              {spreadsheetData.rows.length > 500 && (
-                <div className="text-center text-muted-foreground py-4">
-                  Showing first 500 rows of {spreadsheetData.rows.length}
-                </div>
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Footer status bar */}
+            <div className="flex items-center justify-between px-3 py-1.5 border-t bg-neutral-100 text-[11px] text-neutral-500">
+              <span>
+                {spreadsheetData.rows.length + 1} rows × {maxCols} columns
+              </span>
+              {spreadsheetData.rows.length > 1000 && (
+                <span className="text-amber-600">
+                  Showing first 1,000 rows of {spreadsheetData.rows.length.toLocaleString()}
+                </span>
               )}
             </div>
           </div>

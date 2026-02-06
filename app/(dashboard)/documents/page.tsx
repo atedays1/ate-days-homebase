@@ -23,7 +23,9 @@ import {
   Loader2,
   Upload,
   X,
-  ChevronDown
+  ChevronDown,
+  Trash2,
+  CheckSquare
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -106,6 +108,10 @@ export default function DocumentsPage() {
 
   // Document viewer state
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null)
+
+  // Batch selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Persist view mode
   useEffect(() => {
@@ -356,6 +362,64 @@ export default function DocumentsPage() {
   const handleOpenDocument = useCallback((doc: Document) => {
     setViewingDocument(doc)
   }, [])
+
+  // Selection handlers
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedIds.size === filteredDocuments.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredDocuments.map(d => d.id)))
+    }
+  }, [filteredDocuments, selectedIds.size])
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set())
+  }, [])
+
+  // Batch delete handler
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedIds.size} document${selectedIds.size > 1 ? 's' : ''}? This cannot be undone.`
+    )
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    const idsToDelete = Array.from(selectedIds)
+    let successCount = 0
+
+    for (const id of idsToDelete) {
+      try {
+        const response = await fetch(`/api/documents?id=${id}`, {
+          method: "DELETE",
+        })
+        if (response.ok) {
+          successCount++
+        }
+      } catch (error) {
+        console.error(`Failed to delete document ${id}:`, error)
+      }
+    }
+
+    // Refresh documents and clear selection
+    await fetchDocuments()
+    setSelectedIds(new Set())
+    setSelectedDocument(null)
+    setIsDeleting(false)
+  }, [selectedIds, fetchDocuments])
 
   return (
     <div className="flex h-full flex-col">
@@ -624,9 +688,55 @@ export default function DocumentsPage() {
             onSelect={handleSelectDocument}
             onOpen={handleOpenDocument}
             selectedId={selectedDocument?.id}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+            selectionMode={selectedIds.size > 0}
           />
         )}
       </div>
+
+      {/* Batch Selection Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-lg">
+          <div className="flex items-center gap-2 text-[13px]">
+            <CheckSquare className="h-4 w-4 text-neutral-500" />
+            <span className="font-medium text-neutral-900">{selectedIds.size}</span>
+            <span className="text-neutral-500">selected</span>
+          </div>
+          <div className="h-4 w-px bg-neutral-200" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-[13px] h-8"
+            onClick={handleSelectAll}
+          >
+            {selectedIds.size === filteredDocuments.length ? "Deselect all" : "Select all"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-[13px] h-8"
+            onClick={handleClearSelection}
+          >
+            Clear
+          </Button>
+          <div className="h-4 w-px bg-neutral-200" />
+          <Button
+            variant="destructive"
+            size="sm"
+            className="gap-1.5 text-[13px] h-8"
+            onClick={handleBatchDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+            Delete {selectedIds.size}
+          </Button>
+        </div>
+      )}
 
       {/* Document Preview Sidebar */}
       {selectedDocument && (

@@ -9,7 +9,8 @@ import {
   Loader2,
   MoreHorizontal,
   Eye,
-  FileType
+  FileType,
+  Check
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -32,6 +33,9 @@ interface DocumentListProps {
   onSelect?: (doc: Document) => void
   onOpen?: (doc: Document) => void
   selectedId?: string
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
+  selectionMode?: boolean
 }
 
 function formatFileSize(bytes: number): string {
@@ -89,10 +93,18 @@ export function DocumentList({
   viewMode = "grid",
   onSelect,
   onOpen,
-  selectedId
+  selectedId,
+  selectedIds = new Set(),
+  onToggleSelect,
+  selectionMode = false
 }: DocumentListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+
+  const handleCheckboxClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    onToggleSelect?.(id)
+  }
 
   const handleDelete = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
@@ -140,20 +152,37 @@ export function DocumentList({
           const colors = getFileColors(doc.type)
           const isDeleting = deletingId === doc.id
           const isSelected = selectedId === doc.id
+          const isChecked = selectedIds.has(doc.id)
 
           return (
             <div
               key={doc.id}
-              onClick={() => onSelect?.(doc)}
-              onDoubleClick={(e) => handleOpen(doc, e)}
+              onClick={() => selectionMode ? onToggleSelect?.(doc.id) : onSelect?.(doc)}
+              onDoubleClick={(e) => !selectionMode && handleOpen(doc, e)}
               className={cn(
                 "group relative flex cursor-pointer flex-col rounded-xl border bg-white p-4 transition-all hover:shadow-md",
-                isSelected 
+                isSelected && !selectionMode
                   ? "border-neutral-900 ring-1 ring-neutral-900" 
+                  : isChecked
+                  ? "border-blue-500 ring-1 ring-blue-500 bg-blue-50/50"
                   : "border-neutral-200 hover:border-neutral-300",
                 isDeleting && "opacity-50 pointer-events-none"
               )}
             >
+              {/* Checkbox */}
+              <button
+                onClick={(e) => handleCheckboxClick(doc.id, e)}
+                className={cn(
+                  "absolute top-3 left-3 flex h-5 w-5 items-center justify-center rounded border transition-all",
+                  isChecked
+                    ? "bg-blue-500 border-blue-500 text-white"
+                    : "border-neutral-300 bg-white opacity-0 group-hover:opacity-100",
+                  selectionMode && "opacity-100"
+                )}
+              >
+                {isChecked && <Check className="h-3 w-3" />}
+              </button>
+
               {/* Icon and Menu */}
               <div className="flex items-start justify-between">
                 <div className={cn(
@@ -265,18 +294,34 @@ export function DocumentList({
         const colors = getFileColors(doc.type)
         const isDeleting = deletingId === doc.id
         const isSelected = selectedId === doc.id
+        const isChecked = selectedIds.has(doc.id)
 
         return (
           <div
             key={doc.id}
-            onClick={() => onSelect?.(doc)}
-            onDoubleClick={(e) => handleOpen(doc, e)}
+            onClick={() => selectionMode ? onToggleSelect?.(doc.id) : onSelect?.(doc)}
+            onDoubleClick={(e) => !selectionMode && handleOpen(doc, e)}
             className={cn(
               "group flex cursor-pointer items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50",
-              isSelected && "bg-neutral-50",
+              isSelected && !selectionMode && "bg-neutral-50",
+              isChecked && "bg-blue-50/50",
               isDeleting && "opacity-50 pointer-events-none"
             )}
           >
+            {/* Checkbox */}
+            <button
+              onClick={(e) => handleCheckboxClick(doc.id, e)}
+              className={cn(
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all",
+                isChecked
+                  ? "bg-blue-500 border-blue-500 text-white"
+                  : "border-neutral-300 bg-white opacity-0 group-hover:opacity-100",
+                selectionMode && "opacity-100"
+              )}
+            >
+              {isChecked && <Check className="h-3 w-3" />}
+            </button>
+
             <div className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
               colors.bg

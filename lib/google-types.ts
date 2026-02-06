@@ -12,9 +12,10 @@ export const GOOGLE_MIME_TYPES = {
 }
 
 // Map Google Workspace types to export formats
+// Note: Export Sheets as XLSX to capture all sheets (CSV only exports first sheet)
 export const EXPORT_MIME_MAP: Record<string, string> = {
   [GOOGLE_MIME_TYPES.GOOGLE_DOC]: GOOGLE_MIME_TYPES.PDF,
-  [GOOGLE_MIME_TYPES.GOOGLE_SHEET]: GOOGLE_MIME_TYPES.CSV,
+  [GOOGLE_MIME_TYPES.GOOGLE_SHEET]: GOOGLE_MIME_TYPES.XLSX,
   [GOOGLE_MIME_TYPES.GOOGLE_SLIDES]: GOOGLE_MIME_TYPES.PDF,
 }
 

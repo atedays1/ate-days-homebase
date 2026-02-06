@@ -40,7 +40,12 @@ export async function downloadDriveFile(
     finalMimeType = exportMimeType
 
     // Update filename with correct extension
-    const extension = exportMimeType === GOOGLE_MIME_TYPES.PDF ? ".pdf" : ".csv"
+    let extension = ".pdf"
+    if (exportMimeType === GOOGLE_MIME_TYPES.XLSX) {
+      extension = ".xlsx"
+    } else if (exportMimeType === GOOGLE_MIME_TYPES.CSV) {
+      extension = ".csv"
+    }
     finalName = fileName.replace(/\.[^/.]+$/, "") + extension
   } else {
     // Download regular files directly

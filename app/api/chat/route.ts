@@ -84,66 +84,8 @@ export async function POST(request: NextRequest) {
     const timelineContext = await getTimelineContext()
     console.log("[Chat] Timeline context:", timelineContext ? "loaded" : "not available")
     
-    let chunks: any[] = []
-    
-    // Try vector search first if OpenAI is configured
-    if (isOpenAIConfigured()) {
-      try {
-        const queryEmbedding = await createEmbedding(query)
-        const { data: vectorChunks, error: searchError } = await supabase.rpc(
-          "match_document_chunks",
-          {
-            query_embedding: queryEmbedding,
-            match_threshold: 0.3,
-            match_count: 10,
-          }
-        )
-        
-        if (!searchError && vectorChunks) {
-          chunks = vectorChunks
-          console.log("[Chat] Vector search found", chunks.length, "chunks")
-        }
-      } catch (e) {
-        console.error("[Chat] Vector search failed:", e)
-      }
-    }
-    
-    // Fallback: text search if vector search found nothing
-    if (chunks.length === 0) {
-      console.log("[Chat] Falling back to text search")
-      
-      // Extract keywords from query
-      const keywords = query.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3)
-      
-      // Search document chunks by text content
-      const { data: textChunks, error: textError } = await supabase
-        .from("document_chunks")
-        .select("id, document_id, content, page_number")
-        .limit(50)
-      
-      if (!textError && textChunks) {
-        // Filter chunks that contain any keyword
-        chunks = textChunks.filter((chunk: any) => {
-          const content = chunk.content.toLowerCase()
-          return keywords.some((kw: string) => content.includes(kw))
-        }).slice(0, 10)
-        
-        console.log("[Chat] Text search found", chunks.length, "chunks")
-      }
-    }
-    
-    // Still nothing? Get a sample of recent chunks
-    if (chunks.length === 0) {
-      console.log("[Chat] Getting sample chunks")
-      const { data: sampleChunks } = await supabase
-        .from("document_chunks")
-        .select("id, document_id, content, page_number")
-        .limit(10)
-      
-      if (sampleChunks) {
-        chunks = sampleChunks
-      }
-    }
+    // Use hybrid search: keyword + semantic in parallel
+    const chunks = await performHybridSearch(query)
 
     // If we have timeline but no doc chunks, we can still answer
     if ((!chunks || chunks.length === 0) && !timelineContext) {
@@ -207,5 +149,85 @@ export async function POST(request: NextRequest) {
       { error: error instanceof Error ? error.message : "Chat failed" },
       { status: 500 }
     )
+  }
+}
+
+// Hybrid search: combines keyword and semantic search for better coverage
+async function performHybridSearch(query: string): Promise<any[]> {
+  const seenChunkIds = new Set<string>()
+  const allChunks: any[] = []
+  
+  // Run keyword and semantic search in parallel
+  const [keywordChunks, semanticChunks] = await Promise.all([
+    performKeywordSearch(query),
+    isOpenAIConfigured() ? performSemanticSearch(query) : Promise.resolve([]),
+  ])
+  
+  console.log("[Chat] Keyword search found", keywordChunks.length, "chunks")
+  console.log("[Chat] Semantic search found", semanticChunks.length, "chunks")
+  
+  // Add keyword matches first (higher priority for exact matches)
+  for (const chunk of keywordChunks) {
+    if (!seenChunkIds.has(chunk.id)) {
+      seenChunkIds.add(chunk.id)
+      allChunks.push(chunk)
+    }
+  }
+  
+  // Add semantic matches
+  for (const chunk of semanticChunks) {
+    if (!seenChunkIds.has(chunk.id)) {
+      seenChunkIds.add(chunk.id)
+      allChunks.push(chunk)
+    }
+  }
+  
+  // Limit to top 15 chunks for context window
+  return allChunks.slice(0, 15)
+}
+
+// Keyword search - finds exact text matches
+async function performKeywordSearch(query: string): Promise<any[]> {
+  try {
+    const { data: chunks, error } = await supabase
+      .from("document_chunks")
+      .select("id, document_id, content, page_number")
+      .ilike("content", `%${query}%`)
+      .limit(20)
+    
+    if (error) {
+      console.error("[Chat] Keyword search error:", error)
+      return []
+    }
+    
+    return chunks || []
+  } catch (e) {
+    console.error("[Chat] Keyword search exception:", e)
+    return []
+  }
+}
+
+// Semantic search - finds conceptually similar content
+async function performSemanticSearch(query: string): Promise<any[]> {
+  try {
+    const queryEmbedding = await createEmbedding(query)
+    const { data: chunks, error } = await supabase.rpc(
+      "match_document_chunks",
+      {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.3,
+        match_count: 10,
+      }
+    )
+    
+    if (error) {
+      console.error("[Chat] Semantic search error:", error)
+      return []
+    }
+    
+    return chunks || []
+  } catch (e) {
+    console.error("[Chat] Semantic search exception:", e)
+    return []
   }
 }

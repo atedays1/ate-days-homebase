@@ -2,7 +2,9 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { createServiceClient } from "@/lib/supabase-server"
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null
 
 const ADMIN_EMAIL = "chris.morell@atedays.com"
 
@@ -14,7 +16,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
 
-    const serviceClient = createServiceClient()
+    const serviceClient = await createServiceClient()
 
     // Check if user already has an access record
     const { data: existingAccess } = await serviceClient
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
     // If no record exists, create one
     if (!existingAccess) {
       const isAteDaysEmail = email.toLowerCase().endsWith("@atedays.com")
-      
+
       await serviceClient.from("user_access").insert({
         email,
         name: name || null,
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
       if (!isAteDaysEmail && resend) {
         try {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002"
-          
+
           await resend.emails.send({
             from: "AteDays Homebase <noreply@atedays.com>",
             to: ADMIN_EMAIL,
@@ -71,7 +73,10 @@ export async function POST(request: Request) {
           // Don't fail the request if email fails
         }
       } else if (!isAteDaysEmail && !resend) {
-        console.log("Resend not configured - skipping email notification for:", email)
+        console.log(
+          "Resend not configured - skipping email notification for:",
+          email
+        )
       }
     }
 

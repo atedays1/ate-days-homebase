@@ -9,8 +9,8 @@ export async function GET(request: NextRequest) {
   const redirect = requestUrl.searchParams.get("redirect") || "/"
 
   if (code) {
-    const cookieStore = cookies()
-    
+    const cookieStore = await cookies()
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -29,11 +29,16 @@ export async function GET(request: NextRequest) {
     )
 
     // Exchange code for session
-    const { data: { user }, error } = await supabase.auth.exchangeCodeForSession(code)
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
       console.error("Auth callback error:", error)
-      return NextResponse.redirect(new URL("/login?error=auth_failed", requestUrl.origin))
+      return NextResponse.redirect(
+        new URL("/login?error=auth_failed", requestUrl.origin)
+      )
     }
 
     if (user?.email) {
@@ -43,7 +48,9 @@ export async function GET(request: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
         {
           cookies: {
-            getAll() { return [] },
+            getAll() {
+              return []
+            },
             setAll() {},
           },
         }
@@ -59,7 +66,7 @@ export async function GET(request: NextRequest) {
       if (!existingAccess) {
         // Check if email is from @atedays.com domain
         const isAteDaysEmail = user.email.toLowerCase().endsWith("@atedays.com")
-        
+
         // Create access record
         const accessData = {
           email: user.email,
@@ -74,15 +81,17 @@ export async function GET(request: NextRequest) {
         // If not an @atedays.com email, send notification to admin
         if (!isAteDaysEmail) {
           try {
-            // Trigger access request notification
-            await fetch(new URL("/api/access-request", requestUrl.origin).toString(), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                email: user.email,
-                name: accessData.name,
-              }),
-            })
+            await fetch(
+              new URL("/api/access-request", requestUrl.origin).toString(),
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  email: user.email,
+                  name: accessData.name,
+                }),
+              }
+            )
           } catch (err) {
             console.error("Failed to send access request notification:", err)
           }

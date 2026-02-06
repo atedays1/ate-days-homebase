@@ -3,14 +3,16 @@ import { Resend } from "resend"
 import { requireAdmin } from "@/lib/api-auth"
 import { createServiceClient } from "@/lib/supabase-server"
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null
 
 export async function GET() {
   try {
     await requireAdmin()
-    
-    const serviceClient = createServiceClient()
-    
+
+    const serviceClient = await createServiceClient()
+
     const { data: users, error } = await serviceClient
       .from("user_access")
       .select("*")
@@ -26,10 +28,7 @@ export async function GET() {
       return error
     }
     console.error("Error fetching users:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch users" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 })
   }
 }
 
@@ -42,17 +41,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
 
-    const serviceClient = createServiceClient()
-    
+    const serviceClient = await createServiceClient()
+
     const updateData: Record<string, string> = {}
-    
+
     if (status) {
       updateData.status = status
       if (status === "approved") {
         updateData.approved_by = auth.user.email
       }
     }
-    
+
     if (role) {
       updateData.role = role
     }
@@ -72,7 +71,7 @@ export async function POST(request: Request) {
     if (status === "approved" && resend) {
       try {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002"
-        
+
         await resend.emails.send({
           from: "AteDays Homebase <noreply@atedays.com>",
           to: email,
@@ -138,9 +137,6 @@ export async function POST(request: Request) {
       return error
     }
     console.error("Error updating user:", error)
-    return NextResponse.json(
-      { error: "Failed to update user" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
   }
 }

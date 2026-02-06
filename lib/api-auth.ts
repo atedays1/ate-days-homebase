@@ -1,5 +1,4 @@
-import { createClient } from "@/lib/supabase-server"
-import { createServiceClient } from "@/lib/supabase-server"
+import { createClient, createServiceClient } from "@/lib/supabase-server"
 
 export interface AuthResult {
   user: {
@@ -18,10 +17,13 @@ export interface AuthResult {
  * Throws Response object if authentication fails
  */
 export async function requireAuth(): Promise<AuthResult> {
-  const supabase = createClient()
-  
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
   if (authError || !user) {
     throw new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
@@ -30,8 +32,8 @@ export async function requireAuth(): Promise<AuthResult> {
   }
 
   // Use service client to bypass RLS for access check
-  const serviceClient = createServiceClient()
-  
+  const serviceClient = await createServiceClient()
+
   const { data: access, error: accessError } = await serviceClient
     .from("user_access")
     .select("status, role")
@@ -70,7 +72,7 @@ export async function requireAuth(): Promise<AuthResult> {
  */
 export async function requireAdmin(): Promise<AuthResult> {
   const auth = await requireAuth()
-  
+
   if (auth.access.role !== "admin") {
     throw new Response(JSON.stringify({ error: "Admin access required" }), {
       status: 403,
@@ -85,8 +87,8 @@ export async function requireAdmin(): Promise<AuthResult> {
  * Get user access info (returns null if not found, doesn't throw)
  */
 export async function getUserAccess(email: string) {
-  const serviceClient = createServiceClient()
-  
+  const serviceClient = await createServiceClient()
+
   const { data, error } = await serviceClient
     .from("user_access")
     .select("*")
@@ -113,8 +115,8 @@ export async function upsertUserAccess(
     approved_by?: string
   }
 ) {
-  const serviceClient = createServiceClient()
-  
+  const serviceClient = await createServiceClient()
+
   const { data: result, error } = await serviceClient
     .from("user_access")
     .upsert(

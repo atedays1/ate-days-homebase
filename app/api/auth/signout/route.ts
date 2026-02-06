@@ -1,10 +1,9 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr"
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
 /**
- * Helper function to perform sign-out
- * Clears Supabase auth cookies properly
+ * Helper function to perform sign-out using modern Supabase SSR API
  */
 async function performSignOut() {
   const cookieStore = cookies()
@@ -14,25 +13,22 @@ async function performSignOut() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
+        getAll() {
+          return cookieStore.getAll()
         },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          // FIX: Properly delete cookies instead of setting to empty string
-          cookieStore.delete(name)
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
         },
       },
     }
   )
 
-  // Sign out from Supabase (this triggers the remove() callback for auth cookies)
+  // Sign out from Supabase
   await supabase.auth.signOut()
 
-  // Belt and suspenders: Explicitly delete all known Supabase auth cookies
-  // This ensures cookies are removed even if signOut() doesn't trigger remove() for some reason
+  // Belt and suspenders: Explicitly delete all Supabase auth cookies
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const projectRef = new URL(supabaseUrl).hostname.split('.')[0]
   
@@ -41,9 +37,13 @@ async function performSignOut() {
     `sb-${projectRef}-auth-token-code-verifier`,
   ]
 
+  // Delete cookies by setting them with maxAge: 0
   for (const name of cookieNames) {
     try {
-      cookieStore.delete(name)
+      cookieStore.set(name, '', { 
+        maxAge: 0,
+        path: '/',
+      })
     } catch (e) {
       // Cookie may not exist, ignore errors
     }

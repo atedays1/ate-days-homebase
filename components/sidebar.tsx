@@ -40,12 +40,17 @@ export function Sidebar() {
   const isAdmin = userAccess?.role === "admin"
 
   const handleSignOut = () => {
-    // Clear local state and redirect
-    signOut()
-    // Force redirect after a brief delay to ensure cleanup
-    setTimeout(() => {
-      window.location.href = "/login"
-    }, 100)
+    // Clear all Supabase auth data from localStorage
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') || key.includes('supabase')) {
+        localStorage.removeItem(key)
+      }
+    })
+    // Clear Google tokens too
+    localStorage.removeItem('google_access_token')
+    localStorage.removeItem('google_token_expiry')
+    // Force full page redirect to login
+    window.location.replace("/login")
   }
 
   return (

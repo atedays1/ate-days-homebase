@@ -38,7 +38,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       {/* Backdrop overlay for mobile */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-[65] bg-black/50 md:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -47,8 +47,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main content */}
-      <main className="relative flex-1 overflow-x-hidden overflow-y-auto bg-[#fafafa] pt-14 md:pt-0">
+      {/* Main content - isolate creates new stacking context to prevent z-index conflicts with header */}
+      <main className="relative isolate flex-1 overflow-x-hidden overflow-y-auto bg-[#fafafa] pt-14 md:pt-0">
         {children}
       </main>
     </div>

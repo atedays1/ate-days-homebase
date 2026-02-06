@@ -9,7 +9,7 @@ interface MobileHeaderProps {
 
 export function MobileHeader({ onMenuClick }: MobileHeaderProps) {
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b border-neutral-200 bg-white px-4 md:hidden">
+    <header className="fixed top-0 left-0 right-0 z-[60] flex h-14 items-center justify-between border-b border-neutral-200 bg-white px-4 md:hidden">
       {/* Hamburger menu button */}
       <button
         onClick={onMenuClick}

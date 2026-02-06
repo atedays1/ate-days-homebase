@@ -68,7 +68,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   return (
     <div 
       className={cn(
-        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-[#0a0a0a] border-r border-white/[0.08] transition-transform duration-300 ease-in-out",
+        "fixed inset-y-0 left-0 z-[70] flex w-64 flex-col bg-[#0a0a0a] border-r border-white/[0.08] transition-transform duration-300 ease-in-out",
         // Desktop: always visible, positioned relative
         "md:relative md:z-10 md:w-56 md:translate-x-0",
         // Mobile: slide in/out

@@ -38,8 +38,20 @@ export default async function DashboardLayout({
     redirect("/denied")
   }
 
+  // Pass server-side auth data to client-side AuthProvider
+  const initialUser = {
+    id: user.id,
+    email: user.email!,
+    user_metadata: user.user_metadata,
+  }
+
+  const initialAccess = {
+    status: userAccess.status as "approved" | "pending" | "denied",
+    role: userAccess.role as "admin" | "editor" | "viewer",
+  }
+
   return (
-    <AuthProvider>
+    <AuthProvider initialUser={initialUser} initialAccess={initialAccess}>
       <div className="flex h-screen overflow-hidden bg-white">
         <Sidebar />
         <main className="relative flex-1 overflow-auto bg-[#fafafa]">

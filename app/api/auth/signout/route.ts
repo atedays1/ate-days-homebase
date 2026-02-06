@@ -1,62 +1,92 @@
-import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
-/**
- * Helper function to perform sign-out
- */
-async function performSignOut() {
-  const cookieStore = await cookies()
+export async function GET() {
+  // Get the base URL for redirect
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002"
+  
+  // Create redirect response
+  const response = NextResponse.redirect(new URL("/login", baseUrl))
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
-        },
-      },
+  // Get project ref for cookie names
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split(".")[0] : ""
+
+  // Delete cookies by setting them with immediate expiration on the RESPONSE
+  const cookieNames = [
+    `sb-${projectRef}-auth-token`,
+    `sb-${projectRef}-auth-token-code-verifier`,
+    `sb-${projectRef}-auth-token.0`,
+    `sb-${projectRef}-auth-token.1`,
+  ]
+
+  for (const name of cookieNames) {
+    // Set cookie to empty with immediate expiration
+    response.cookies.set(name, "", {
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
+    })
+  }
+
+  // Also try to read all cookies and delete any sb- ones
+  try {
+    const cookieStore = await cookies()
+    const allCookies = cookieStore.getAll()
+    
+    for (const cookie of allCookies) {
+      if (cookie.name.startsWith("sb-")) {
+        response.cookies.set(cookie.name, "", {
+          path: "/",
+          maxAge: 0,
+          expires: new Date(0),
+        })
+      }
     }
-  )
+  } catch {
+    // Ignore errors reading cookies
+  }
 
-  // Sign out from Supabase
-  await supabase.auth.signOut()
+  return response
+}
 
-  // Explicitly delete all Supabase auth cookies
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const projectRef = new URL(supabaseUrl).hostname.split(".")[0]
+export async function POST() {
+  const response = NextResponse.json({ success: true })
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split(".")[0] : ""
 
   const cookieNames = [
     `sb-${projectRef}-auth-token`,
     `sb-${projectRef}-auth-token-code-verifier`,
+    `sb-${projectRef}-auth-token.0`,
+    `sb-${projectRef}-auth-token.1`,
   ]
 
   for (const name of cookieNames) {
-    try {
-      cookieStore.set(name, "", {
-        maxAge: 0,
-        path: "/",
-      })
-    } catch {
-      // Cookie may not exist, ignore errors
-    }
+    response.cookies.set(name, "", {
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
+    })
   }
-}
 
-export async function POST() {
-  await performSignOut()
-  return NextResponse.json({ success: true })
-}
+  try {
+    const cookieStore = await cookies()
+    const allCookies = cookieStore.getAll()
+    
+    for (const cookie of allCookies) {
+      if (cookie.name.startsWith("sb-")) {
+        response.cookies.set(cookie.name, "", {
+          path: "/",
+          maxAge: 0,
+          expires: new Date(0),
+        })
+      }
+    }
+  } catch {
+    // Ignore
+  }
 
-export async function GET() {
-  await performSignOut()
-  return NextResponse.redirect(
-    new URL("/login", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002")
-  )
+  return response
 }

@@ -28,9 +28,6 @@ export async function updateSession(request: NextRequest) {
   )
 
   // IMPORTANT: Do not run code between createServerClient and getUser()
-  // A simple mistake could make it very hard to debug issues with users being randomly logged out.
-  
-  // Use getUser() for Next.js 14.2 compatibility (getClaims() is for Next.js 15+)
   const { data: { user } } = await supabase.auth.getUser()
 
   return { supabaseResponse, user }

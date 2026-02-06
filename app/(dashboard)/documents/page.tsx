@@ -4,11 +4,17 @@ import { useEffect, useState, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import dynamic from "next/dynamic"
 import { UploadZone } from "@/components/upload-zone"
 import { DocumentList } from "@/components/document-list"
 import { DocumentPreview } from "@/components/document-preview"
-import { DocumentViewer } from "@/components/document-viewer"
 import { GoogleDrivePicker } from "@/components/google-drive-picker"
+
+// Load DocumentViewer only on client side (react-pdf requires browser APIs)
+const DocumentViewer = dynamic(
+  () => import("@/components/document-viewer").then(mod => mod.DocumentViewer),
+  { ssr: false }
+)
 import { 
   Search, 
   Grid3X3, 

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/discover-competitors",
+      "schedule": "0 9 * * 1"
+    }
+  ]
+}

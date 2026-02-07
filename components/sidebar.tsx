@@ -12,6 +12,7 @@ import {
   Crown,
   BarChart3,
   Users,
+  Users2,
   LogOut,
   X,
 } from "lucide-react"
@@ -24,6 +25,7 @@ const navigation = [
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Knowledge Base", href: "/knowledge-base", icon: MessageSquare },
   { name: "Documents", href: "/documents", icon: FolderOpen },
+  { name: "Competitors", href: "/competitors", icon: Users2 },
   { name: "Timeline", href: "/timeline", icon: CalendarDays },
   { name: "Brand", href: "/brand-research", icon: Palette },
   { name: "Financial", href: "/financial", icon: DollarSign },

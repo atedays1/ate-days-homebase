@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error("[Scrape] Insert failed:", insertError)
       return NextResponse.json(
-        { error: "Failed to save competitor" },
+        { error: `Failed to save competitor: ${insertError.message}` },
         { status: 500 }
       )
     }

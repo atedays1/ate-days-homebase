@@ -121,10 +121,10 @@ Return ONLY valid JSON, no markdown or explanation:
 // POST - Scrape a URL and create a competitor
 export async function POST(request: NextRequest) {
   try {
-    const { userAccess } = await requireAuth()
+    const { access } = await requireAuth()
     
     // Only admins can add competitors
-    if (userAccess?.role !== "admin") {
+    if (access?.role !== "admin") {
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }

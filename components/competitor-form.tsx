@@ -71,6 +71,9 @@ export function CompetitorForm({ competitor, onClose, onSuccess }: CompetitorFor
   const [name, setName] = useState(competitor?.name || "")
   const [description, setDescription] = useState(competitor?.description || "")
   
+  // Manual fallback mode (when scraping fails)
+  const [showManualFallback, setShowManualFallback] = useState(false)
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -178,6 +181,54 @@ export function CompetitorForm({ competitor, onClose, onSuccess }: CompetitorFor
       } else {
         setError(`Failed to add any competitors. ${failCount} error${failCount > 1 ? 's' : ''}.`)
       }
+    } else if (showManualFallback) {
+      // Manual entry mode (fallback when scraping fails)
+      if (!name.trim()) {
+        setError("Name is required")
+        return
+      }
+      if (!url.trim()) {
+        setError("URL is required")
+        return
+      }
+      
+      setIsSubmitting(true)
+      
+      try {
+        let cleanUrl = url.trim()
+        if (!cleanUrl.startsWith('http')) {
+          cleanUrl = `https://${cleanUrl}`
+        }
+        
+        const response = await fetch("/api/competitors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            description: description.trim() || null,
+            website_url: cleanUrl,
+            category,
+            discovered_via: "manual",
+          }),
+        })
+        
+        const result = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to add competitor")
+        }
+        
+        setStatus(`Added "${name.trim()}" successfully!`)
+        
+        setTimeout(() => {
+          onSuccess()
+        }, 1000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred")
+        setStatus(null)
+      } finally {
+        setIsSubmitting(false)
+      }
     } else {
       // Adding new competitor - use AI scraping (single URL)
       if (!url.trim()) {
@@ -206,6 +257,14 @@ export function CompetitorForm({ competitor, onClose, onSuccess }: CompetitorFor
         const result = await response.json()
         
         if (!response.ok) {
+          // Check if it's a fetch failure - offer manual fallback
+          if (result.error?.includes("fetch") || result.error?.includes("Failed to fetch")) {
+            setShowManualFallback(true)
+            setError(null)
+            setStatus(null)
+            setIsSubmitting(false)
+            return
+          }
           throw new Error(result.error || "Failed to add competitor")
         }
         
@@ -216,8 +275,16 @@ export function CompetitorForm({ competitor, onClose, onSuccess }: CompetitorFor
           onSuccess()
         }, 1000)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred")
-        setStatus(null)
+        const errorMsg = err instanceof Error ? err.message : "An error occurred"
+        // Check if it's a network/fetch error - offer manual fallback
+        if (errorMsg.includes("fetch") || errorMsg.includes("Failed to fetch")) {
+          setShowManualFallback(true)
+          setError(null)
+          setStatus(null)
+        } else {
+          setError(errorMsg)
+          setStatus(null)
+        }
       } finally {
         setIsSubmitting(false)
       }
@@ -364,6 +431,81 @@ export function CompetitorForm({ competitor, onClose, onSuccess }: CompetitorFor
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Brief description..."
+                  rows={2}
+                  className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-neutral-900/10 resize-none disabled:opacity-50"
+                  disabled={isSubmitting}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[12px] font-medium text-neutral-700 mb-1.5">
+                  Category
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full h-10 rounded-md border border-neutral-200 bg-white px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-neutral-900/10 disabled:opacity-50"
+                  disabled={isSubmitting}
+                >
+                  {CATEGORIES.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : showManualFallback ? (
+            // Manual fallback mode - when scraping fails
+            <>
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[13px] text-amber-700 font-medium">
+                    Couldn't auto-scrape this website
+                  </p>
+                  <p className="text-[12px] text-amber-600 mt-0.5">
+                    Please enter the details manually below.
+                  </p>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-[12px] font-medium text-neutral-700 mb-1.5">
+                  Website URL
+                </label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                  <Input
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="seed.com"
+                    className="h-10 pl-10 text-[14px]"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-[12px] font-medium text-neutral-700 mb-1.5">
+                  Company Name <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Seed"
+                  className="h-10 text-[14px]"
+                  disabled={isSubmitting}
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[12px] font-medium text-neutral-700 mb-1.5">
+                  Description (optional)
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Brief description of the company..."
                   rows={2}
                   className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-neutral-900/10 resize-none disabled:opacity-50"
                   disabled={isSubmitting}
@@ -536,10 +678,12 @@ hum.com"
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {bulkMode ? `Processing...` : isEditing ? "Saving..." : "Analyzing..."}
+                    {bulkMode ? `Processing...` : isEditing ? "Saving..." : showManualFallback ? "Adding..." : "Analyzing..."}
                   </>
                 ) : isEditing ? (
                   "Save Changes"
+                ) : showManualFallback ? (
+                  "Add Competitor"
                 ) : bulkMode ? (
                   <>
                     <Sparkles className="h-4 w-4" />

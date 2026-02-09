@@ -182,11 +182,16 @@ export function MarketSummary() {
           <div className="grid gap-4 md:grid-cols-2">
             {/* Pain Points Section */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                <h4 className="text-[12px] font-semibold text-neutral-700 uppercase tracking-wider">
-                  Pain Points Heatmap
-                </h4>
+              <div>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <h4 className="text-[12px] font-semibold text-neutral-700 uppercase tracking-wider">
+                    Pain Points Heatmap
+                  </h4>
+                </div>
+                <p className="text-[11px] text-neutral-400 mt-1 ml-6">
+                  What's broken in the industry
+                </p>
               </div>
               
               <div className="space-y-2">
@@ -231,11 +236,16 @@ export function MarketSummary() {
             
             {/* White Space Section */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Lightbulb className="h-4 w-4 text-emerald-500" />
-                <h4 className="text-[12px] font-semibold text-neutral-700 uppercase tracking-wider">
-                  White Space Opportunities
-                </h4>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-emerald-500" />
+                  <h4 className="text-[12px] font-semibold text-neutral-700 uppercase tracking-wider">
+                    White Space Opportunities
+                  </h4>
+                </div>
+                <p className="text-[11px] text-neutral-400 mt-1 ml-6">
+                  Where AteDays can win
+                </p>
               </div>
               
               <div className="space-y-2">

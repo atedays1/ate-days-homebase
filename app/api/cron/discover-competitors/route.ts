@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
 import { runCompetitorDiscovery, isTavilyConfigured } from "@/lib/tavily"
+import { sendDiscoveryNotification } from "@/lib/email"
 
 // Verify cron secret to ensure request is from Vercel Cron
 function verifyCronSecret(request: NextRequest): boolean {
@@ -108,6 +109,11 @@ export async function GET(request: NextRequest) {
           { status: 500 }
         )
       }
+      
+      // Send email notification
+      const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || "https://atedays-homebase.vercel.app"
+      const emailResult = await sendDiscoveryNotification(newDiscoveries, dashboardUrl)
+      console.log("[Cron] Email notification result:", emailResult)
     }
     
     console.log("[Cron] Discovery scan completed successfully")
@@ -117,6 +123,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
       total_found: discoveries.length,
       new_discoveries: newDiscoveries.length,
+      email_sent: newDiscoveries.length > 0,
     })
   } catch (error) {
     console.error("[Cron] Error:", error)

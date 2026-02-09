@@ -17,7 +17,9 @@ import {
   Moon,
   Zap,
   Heart,
-  Layers
+  Layers,
+  Sparkles,
+  Check
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -42,6 +44,8 @@ export default function CompetitorsPage() {
   const [viewingCompetitor, setViewingCompetitor] = useState<Competitor | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisResult, setAnalysisResult] = useState<{ analyzed: number; message: string } | null>(null)
   
   const fetchCompetitors = useCallback(async () => {
     try {
@@ -111,6 +115,32 @@ export default function CompetitorsPage() {
     fetchCompetitors()
   }
   
+  const handleAnalyzeAll = async () => {
+    setIsAnalyzing(true)
+    setAnalysisResult(null)
+    
+    try {
+      const response = await fetch("/api/competitors/analyze-all", {
+        method: "POST",
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setAnalysisResult({ analyzed: data.analyzed, message: data.message })
+        // Refresh competitors to show new insights
+        fetchCompetitors()
+      } else {
+        const error = await response.json()
+        setAnalysisResult({ analyzed: 0, message: error.error || "Analysis failed" })
+      }
+    } catch (error) {
+      console.error("Failed to analyze competitors:", error)
+      setAnalysisResult({ analyzed: 0, message: "Analysis failed" })
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+  
   // Filter competitors client-side for immediate search feedback
   const filteredCompetitors = competitors.filter(c => {
     if (searchQuery) {
@@ -142,13 +172,33 @@ export default function CompetitorsPage() {
           </div>
           
           {isAdmin && (
-            <Button
-              onClick={() => setShowForm(true)}
-              className="gap-2 bg-neutral-900 hover:bg-neutral-800"
-            >
-              <Plus className="h-4 w-4" />
-              Add Competitor
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleAnalyzeAll}
+                disabled={isAnalyzing}
+                variant="outline"
+                className="gap-2"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Analyze All
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => setShowForm(true)}
+                className="gap-2 bg-neutral-900 hover:bg-neutral-800"
+              >
+                <Plus className="h-4 w-4" />
+                Add Competitor
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -273,6 +323,33 @@ export default function CompetitorsPage() {
             className="h-7 text-[12px]"
           >
             Cancel
+          </Button>
+        </div>
+      )}
+      
+      {/* Analysis result toast */}
+      {analysisResult && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-lg">
+          <div className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-full",
+            analysisResult.analyzed > 0 ? "bg-emerald-100" : "bg-amber-100"
+          )}>
+            {analysisResult.analyzed > 0 ? (
+              <Check className="h-3.5 w-3.5 text-emerald-600" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+            )}
+          </div>
+          <span className="text-[13px] text-neutral-700">
+            {analysisResult.message}
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setAnalysisResult(null)}
+            className="h-7 text-[12px]"
+          >
+            Dismiss
           </Button>
         </div>
       )}

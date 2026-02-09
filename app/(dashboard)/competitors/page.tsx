@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { CompetitorCard, CompetitorCardSkeleton, Competitor } from "@/components/competitor-card"
 import { CompetitorForm } from "@/components/competitor-form"
+import { CompetitorDetail } from "@/components/competitor-detail"
+import { MarketSummary } from "@/components/market-summary"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { 
@@ -37,6 +39,7 @@ export default function CompetitorsPage() {
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [showForm, setShowForm] = useState(false)
   const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null)
+  const [viewingCompetitor, setViewingCompetitor] = useState<Competitor | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   
@@ -69,6 +72,10 @@ export default function CompetitorsPage() {
   const handleEdit = (competitor: Competitor) => {
     setEditingCompetitor(competitor)
     setShowForm(true)
+  }
+  
+  const handleViewDetails = (competitor: Competitor) => {
+    setViewingCompetitor(competitor)
   }
   
   const handleDelete = async (id: string) => {
@@ -145,6 +152,9 @@ export default function CompetitorsPage() {
           )}
         </div>
       </div>
+      
+      {/* Market Intelligence Summary */}
+      <MarketSummary />
       
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -235,6 +245,7 @@ export default function CompetitorsPage() {
               isAdmin={isAdmin}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onViewDetails={handleViewDetails}
             />
           ))}
         </div>
@@ -272,6 +283,14 @@ export default function CompetitorsPage() {
           competitor={editingCompetitor}
           onClose={handleFormClose}
           onSuccess={handleFormSuccess}
+        />
+      )}
+      
+      {/* Competitor Detail Modal */}
+      {viewingCompetitor && (
+        <CompetitorDetail
+          competitor={viewingCompetitor}
+          onClose={() => setViewingCompetitor(null)}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { 
   Globe, 
   ShoppingCart, 
@@ -13,7 +13,10 @@ import {
   Pencil,
   Trash2,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  TrendingUp,
+  ChevronRight
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -29,6 +32,14 @@ function TikTokIcon({ className }: { className?: string }) {
       <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
     </svg>
   )
+}
+
+export interface PainPointBadge {
+  id: string
+  name: string
+  slug: string
+  severity: "high" | "medium" | "low"
+  color: string
 }
 
 export interface Competitor {
@@ -53,12 +64,18 @@ export interface Competitor {
   headquarters: string | null
   created_at: string
   updated_at: string
+  // New intelligence fields
+  ai_summary: string | null
+  overall_opportunity_score: number | null
+  pain_points?: PainPointBadge[]
+  avg_white_space_score?: number
 }
 
 interface CompetitorCardProps {
   competitor: Competitor
   onEdit?: (competitor: Competitor) => void
   onDelete?: (id: string) => void
+  onViewDetails?: (competitor: Competitor) => void
   isAdmin?: boolean
 }
 
@@ -70,15 +87,24 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   general: { bg: "bg-neutral-100", text: "text-neutral-700" },
 }
 
+const SEVERITY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  high: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
+  medium: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200" },
+  low: { bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200" },
+}
+
 export function CompetitorCard({ 
   competitor, 
   onEdit, 
   onDelete,
+  onViewDetails,
   isAdmin = false 
 }: CompetitorCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   
   const categoryColor = CATEGORY_COLORS[competitor.category] || CATEGORY_COLORS.general
+  const painPoints = competitor.pain_points || []
+  const hasInsights = painPoints.length > 0 || competitor.ai_summary
   
   // Get initials for logo fallback
   const initials = competitor.name
@@ -250,6 +276,77 @@ export function CompetitorCard({
             <span className="inline-flex items-center rounded-full bg-neutral-50 px-2 py-0.5 text-[10px] text-neutral-400">
               +{competitor.tags.length - 3}
             </span>
+          )}
+        </div>
+      )}
+      
+      {/* Pain Points & Intelligence */}
+      {hasInsights && (
+        <div className="mt-3 pt-3 border-t border-neutral-100 space-y-2">
+          {/* Pain point badges */}
+          {painPoints.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {painPoints.slice(0, 3).map(pp => {
+                const colors = SEVERITY_COLORS[pp.severity] || SEVERITY_COLORS.medium
+                return (
+                  <span 
+                    key={pp.id}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-medium border",
+                      colors.bg,
+                      colors.text,
+                      colors.border
+                    )}
+                    title={pp.name}
+                  >
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    {pp.name.split(" ")[0]}
+                  </span>
+                )
+              })}
+              {painPoints.length > 3 && (
+                <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] text-neutral-500">
+                  +{painPoints.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* Opportunity score */}
+          {competitor.avg_white_space_score !== undefined && competitor.avg_white_space_score > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-neutral-500">Opportunity Score</span>
+              <div className="flex items-center gap-1">
+                <div className="w-16 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+                  <div 
+                    className={cn(
+                      "h-full rounded-full",
+                      competitor.avg_white_space_score >= 7 ? "bg-emerald-400" :
+                      competitor.avg_white_space_score >= 4 ? "bg-amber-400" : "bg-neutral-300"
+                    )}
+                    style={{ width: `${(competitor.avg_white_space_score / 10) * 100}%` }}
+                  />
+                </div>
+                <span className={cn(
+                  "text-[10px] font-medium",
+                  competitor.avg_white_space_score >= 7 ? "text-emerald-600" :
+                  competitor.avg_white_space_score >= 4 ? "text-amber-600" : "text-neutral-500"
+                )}>
+                  {competitor.avg_white_space_score.toFixed(1)}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          {/* View details button */}
+          {onViewDetails && (
+            <button
+              onClick={() => onViewDetails(competitor)}
+              className="flex items-center justify-center gap-1 w-full py-1.5 rounded-md text-[11px] font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
+            >
+              View Insights
+              <ChevronRight className="h-3 w-3" />
+            </button>
           )}
         </div>
       )}

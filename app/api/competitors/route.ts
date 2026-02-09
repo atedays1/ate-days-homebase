@@ -26,7 +26,7 @@ export interface Competitor {
   updated_at: string
 }
 
-// GET - List all competitors
+// GET - List all competitors with insights
 export async function GET(request: NextRequest) {
   try {
     await requireAuth()
@@ -38,10 +38,27 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category")
     const status = searchParams.get("status")
     const search = searchParams.get("search")
+    const includeInsights = searchParams.get("insights") !== "false"
     
+    // Build base query with optional insights
     let query = supabase
       .from("competitors")
-      .select("*")
+      .select(includeInsights ? `
+        *,
+        competitor_pain_points(
+          id,
+          severity,
+          pain_point:pain_point_categories(
+            id,
+            name,
+            slug,
+            color
+          )
+        ),
+        competitor_white_space_scores(
+          score
+        )
+      ` : "*")
       .order("name", { ascending: true })
     
     if (category && category !== "all") {
@@ -66,7 +83,40 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    return NextResponse.json({ competitors: competitors || [] })
+    // Process competitors to flatten pain points and calculate avg score
+    const processedCompetitors = (competitors || []).map(comp => {
+      // Extract unique pain points (deduplicate by pain_point.id)
+      const painPointsMap = new Map()
+      if (comp.competitor_pain_points) {
+        for (const cpp of comp.competitor_pain_points) {
+          if (cpp.pain_point && !painPointsMap.has(cpp.pain_point.id)) {
+            painPointsMap.set(cpp.pain_point.id, {
+              id: cpp.pain_point.id,
+              name: cpp.pain_point.name,
+              slug: cpp.pain_point.slug,
+              severity: cpp.severity,
+              color: cpp.pain_point.color,
+            })
+          }
+        }
+      }
+      
+      // Calculate average white space score
+      const scores = comp.competitor_white_space_scores?.map((s: { score: number }) => s.score) || []
+      const avgScore = scores.length > 0 
+        ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length 
+        : 0
+      
+      // Return cleaned object
+      const { competitor_pain_points, competitor_white_space_scores, ...rest } = comp
+      return {
+        ...rest,
+        pain_points: Array.from(painPointsMap.values()),
+        avg_white_space_score: Math.round(avgScore * 10) / 10,
+      }
+    })
+    
+    return NextResponse.json({ competitors: processedCompetitors })
   } catch (error) {
     if (error instanceof Response) return error
     console.error("Error:", error)

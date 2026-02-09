@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
 import { requireAuth } from "@/lib/api-auth"
+import { analyzeCompetitorInsights } from "@/lib/competitor-analysis"
 
 export interface Competitor {
   id: string
@@ -185,6 +186,14 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+    
+    // Trigger AI analysis in background (non-blocking)
+    analyzeCompetitorInsights(
+      competitor.id,
+      competitor.name,
+      competitor.description,
+      competitor.website_url
+    ).catch(err => console.error("[Competitors] Background analysis failed:", err))
     
     return NextResponse.json({ competitor }, { status: 201 })
   } catch (error) {

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,6 +34,8 @@ export default function KnowledgeBasePage() {
   const [documentList, setDocumentList] = useState<DocItem[]>([])
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
   const [showDocumentPicker, setShowDocumentPicker] = useState(false)
+  const documentPickerButtonRef = useRef<HTMLButtonElement>(null)
+  const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null)
 
   useEffect(() => {
     async function fetchDocuments() {
@@ -262,8 +265,15 @@ export default function KnowledgeBasePage() {
               ))}
               <div className="relative">
                 <button
+                  ref={documentPickerButtonRef}
                   type="button"
-                  onClick={() => setShowDocumentPicker(!showDocumentPicker)}
+                  onClick={() => {
+                    if (!showDocumentPicker && documentPickerButtonRef.current) {
+                      const rect = documentPickerButtonRef.current.getBoundingClientRect()
+                      setPickerPosition({ top: rect.bottom + 4, left: rect.left })
+                    }
+                    setShowDocumentPicker(!showDocumentPicker)
+                  }}
                   className={cn(
                     "rounded-full px-3 py-1 text-xs font-medium transition-colors flex items-center gap-1",
                     selectedDocumentIds.length > 0
@@ -279,10 +289,20 @@ export default function KnowledgeBasePage() {
                   )}
                   <ChevronDown className={cn("h-3 w-3", showDocumentPicker && "rotate-180")} />
                 </button>
-                {showDocumentPicker && (
+                {showDocumentPicker &&
+                typeof document !== "undefined" &&
+                pickerPosition &&
+                createPortal(
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowDocumentPicker(false)} />
-                    <div className="absolute left-0 top-full z-20 mt-1 max-h-48 w-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-2 shadow-lg">
+                    <div
+                      className="fixed inset-0 z-[100]"
+                      onClick={() => setShowDocumentPicker(false)}
+                      aria-hidden
+                    />
+                    <div
+                      className="fixed z-[101] max-h-48 w-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-2 shadow-lg"
+                      style={{ top: pickerPosition.top, left: pickerPosition.left }}
+                    >
                       {documentList.length === 0 ? (
                         <p className="px-3 py-2 text-xs text-slate-500">No documents yet</p>
                       ) : (
@@ -324,7 +344,8 @@ export default function KnowledgeBasePage() {
                         </button>
                       )}
                     </div>
-                  </>
+                  </>,
+                  document.body
                 )}
               </div>
             </div>

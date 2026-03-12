@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, FormEvent, useEffect } from "react"
+import { useState, FormEvent, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { Search, Loader2, FileText, ExternalLink, ChevronDown, ChevronUp, Eye, Table, Filter, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +53,8 @@ export function DocumentSearch() {
   const [documentList, setDocumentList] = useState<DocItem[]>([])
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
   const [showDocumentPicker, setShowDocumentPicker] = useState(false)
+  const documentPickerButtonRef = useRef<HTMLButtonElement>(null)
+  const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null)
 
   useEffect(() => {
     async function fetchDocuments() {
@@ -193,8 +196,15 @@ export function DocumentSearch() {
             ))}
             <div className="relative">
               <button
+                ref={documentPickerButtonRef}
                 type="button"
-                onClick={() => setShowDocumentPicker(!showDocumentPicker)}
+                onClick={() => {
+                  if (!showDocumentPicker && documentPickerButtonRef.current) {
+                    const rect = documentPickerButtonRef.current.getBoundingClientRect()
+                    setPickerPosition({ top: rect.bottom + 4, left: rect.left })
+                  }
+                  setShowDocumentPicker(!showDocumentPicker)
+                }}
                 className={cn(
                   "rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors flex items-center gap-1",
                   selectedDocumentIds.length > 0 ? "bg-indigo-100 text-indigo-700" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
@@ -208,53 +218,64 @@ export function DocumentSearch() {
                 )}
                 <ChevronDown className={cn("h-2.5 w-2.5", showDocumentPicker && "rotate-180")} />
               </button>
-              {showDocumentPicker && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowDocumentPicker(false)} />
-                  <div className="absolute left-0 top-full z-20 mt-1 max-h-40 w-56 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-2 shadow-lg">
-                    {documentList.length === 0 ? (
-                      <p className="px-3 py-2 text-[10px] text-neutral-500">No documents</p>
-                    ) : (
-                      documentList.map((doc) => {
-                        const isSelected = selectedDocumentIds.includes(doc.id)
-                        return (
-                          <button
-                            key={doc.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedDocumentIds((prev) =>
-                                isSelected ? prev.filter((id) => id !== doc.id) : [...prev, doc.id]
-                              )
-                              setScopeFilter("all")
-                            }}
-                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-neutral-700 hover:bg-neutral-50"
-                          >
-                            <span
-                              className={cn(
-                                "inline-flex h-3 w-3 flex-shrink-0 items-center justify-center rounded border text-[9px] font-bold text-white",
-                                isSelected ? "border-neutral-800 bg-neutral-800" : "border-neutral-300"
-                              )}
+              {showDocumentPicker &&
+                typeof document !== "undefined" &&
+                pickerPosition &&
+                createPortal(
+                  <>
+                    <div
+                      className="fixed inset-0 z-[100]"
+                      onClick={() => setShowDocumentPicker(false)}
+                      aria-hidden
+                    />
+                    <div
+                      className="fixed z-[101] max-h-40 w-56 overflow-y-auto rounded-lg border border-neutral-200 bg-white py-2 shadow-lg"
+                      style={{ top: pickerPosition.top, left: pickerPosition.left }}
+                    >
+                      {documentList.length === 0 ? (
+                        <p className="px-3 py-2 text-[10px] text-neutral-500">No documents</p>
+                      ) : (
+                        documentList.map((doc) => {
+                          const isSelected = selectedDocumentIds.includes(doc.id)
+                          return (
+                            <button
+                              key={doc.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDocumentIds((prev) =>
+                                  isSelected ? prev.filter((id) => id !== doc.id) : [...prev, doc.id]
+                                )
+                                setScopeFilter("all")
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-neutral-700 hover:bg-neutral-50"
                             >
-                              {isSelected ? "✓" : ""}
-                            </span>
-                            <span className="truncate">{doc.name}</span>
-                          </button>
-                        )
-                      })
-                    )}
-                    {selectedDocumentIds.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDocumentIds([])}
-                        className="mt-2 flex w-full items-center gap-1 px-3 py-1.5 text-[10px] text-neutral-500 hover:bg-neutral-50"
-                      >
-                        <X className="h-2.5 w-2.5" />
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
+                              <span
+                                className={cn(
+                                  "inline-flex h-3 w-3 flex-shrink-0 items-center justify-center rounded border text-[9px] font-bold text-white",
+                                  isSelected ? "border-neutral-800 bg-neutral-800" : "border-neutral-300"
+                                )}
+                              >
+                                {isSelected ? "✓" : ""}
+                              </span>
+                              <span className="truncate">{doc.name}</span>
+                            </button>
+                          )
+                        })
+                      )}
+                      {selectedDocumentIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDocumentIds([])}
+                          className="mt-2 flex w-full items-center gap-1 px-3 py-1.5 text-[10px] text-neutral-500 hover:bg-neutral-50"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </>,
+                  document.body
+                )}
             </div>
           </div>
         </div>

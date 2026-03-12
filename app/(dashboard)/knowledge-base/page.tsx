@@ -35,7 +35,7 @@ export default function KnowledgeBasePage() {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
   const [showDocumentPicker, setShowDocumentPicker] = useState(false)
   const documentPickerButtonRef = useRef<HTMLButtonElement>(null)
-  const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null)
+  const [pickerPosition, setPickerPosition] = useState<{ top?: number; bottom?: number; left: number } | null>(null)
 
   useEffect(() => {
     async function fetchDocuments() {
@@ -268,9 +268,16 @@ export default function KnowledgeBasePage() {
                   ref={documentPickerButtonRef}
                   type="button"
                   onClick={() => {
-                    if (!showDocumentPicker && documentPickerButtonRef.current) {
+                    if (!showDocumentPicker && documentPickerButtonRef.current && typeof window !== "undefined") {
                       const rect = documentPickerButtonRef.current.getBoundingClientRect()
-                      setPickerPosition({ top: rect.bottom + 4, left: rect.left })
+                      const dropHeight = 192
+                      const spaceBelow = window.innerHeight - rect.bottom
+                      const openUp = spaceBelow < dropHeight
+                      setPickerPosition(
+                        openUp
+                          ? { bottom: window.innerHeight - rect.top + 4, left: rect.left }
+                          : { top: rect.bottom + 4, left: rect.left }
+                      )
                     }
                     setShowDocumentPicker(!showDocumentPicker)
                   }}
@@ -301,7 +308,10 @@ export default function KnowledgeBasePage() {
                     />
                     <div
                       className="fixed z-[101] max-h-48 w-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-2 shadow-lg"
-                      style={{ top: pickerPosition.top, left: pickerPosition.left }}
+                      style={{
+                        ...(pickerPosition.top !== undefined ? { top: pickerPosition.top } : { bottom: pickerPosition.bottom }),
+                        left: pickerPosition.left,
+                      }}
                     >
                       {documentList.length === 0 ? (
                         <p className="px-3 py-2 text-xs text-slate-500">No documents yet</p>

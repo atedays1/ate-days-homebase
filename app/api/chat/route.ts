@@ -114,7 +114,14 @@ export async function POST(request: NextRequest) {
     console.log("[Chat] Timeline context:", timelineContext ? "loaded" : "not available")
     
     // Use hybrid search: keyword + semantic in parallel (optionally scoped)
-    const chunks = await performHybridSearch(query, scopeIds)
+    let chunks = await performHybridSearch(query, scopeIds)
+
+    // When user scoped to specific doc(s) but query didn't match (e.g. "summarize this document"),
+    // fallback to fetching chunks from those docs so we have context to summarize
+    if (hasScope && scopeIds && (!chunks || chunks.length === 0)) {
+      console.log("[Chat] No hybrid matches for scoped query; falling back to chunks from selected doc(s)")
+      chunks = await getChunksFromDocuments(scopeIds, 20)
+    }
 
     // If we have timeline but no doc chunks, we can still answer (when not scoped)
     if ((!chunks || chunks.length === 0) && !timelineContext) {
@@ -265,6 +272,27 @@ async function performSemanticSearch(query: string, documentIds: string[] | null
     return chunks || []
   } catch (e) {
     console.error("[Chat] Semantic search exception:", e)
+    return []
+  }
+}
+
+// Fallback: get chunks from selected documents without query matching (for "summarize this document" etc.)
+async function getChunksFromDocuments(documentIds: string[], limit: number): Promise<any[]> {
+  try {
+    const { data: chunks, error } = await supabase
+      .from("document_chunks")
+      .select("id, document_id, content, page_number")
+      .in("document_id", documentIds)
+      .order("document_id", { ascending: true })
+      .order("page_number", { ascending: true, nullsFirst: false })
+      .limit(limit)
+    if (error) {
+      console.error("[Chat] getChunksFromDocuments error:", error)
+      return []
+    }
+    return chunks || []
+  } catch (e) {
+    console.error("[Chat] getChunksFromDocuments exception:", e)
     return []
   }
 }

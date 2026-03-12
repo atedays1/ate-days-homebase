@@ -56,12 +56,37 @@ async function getTimelineContext(): Promise<string | null> {
   }
 }
 
+// Resolve document scope: documentIds array or documentFilter (e.g. recent 24h) to list of document IDs
+async function resolveDocumentScope(
+  documentIds?: string[],
+  documentFilter?: { type: "recent"; hours: number }
+): Promise<string[] | null> {
+  if (documentIds && documentIds.length > 0) {
+    return documentIds
+  }
+  if (documentFilter?.type === "recent" && documentFilter.hours > 0) {
+    const since = new Date(Date.now() - documentFilter.hours * 60 * 60 * 1000).toISOString()
+    const { data: docs, error } = await supabase
+      .from("documents")
+      .select("id")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+    if (error) {
+      console.error("[Chat] documentFilter resolve error:", error)
+      return null
+    }
+    return (docs || []).map((d) => d.id)
+  }
+  return null
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
     
-    const { query } = await request.json()
+    const body = await request.json()
+    const { query, documentIds: bodyDocumentIds, documentFilter } = body
 
     if (!query || typeof query !== "string") {
       return NextResponse.json(
@@ -78,19 +103,25 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log("[Chat] Searching for:", query)
+    // Resolve document scope (specific IDs or "recent" filter)
+    const scopeIds = await resolveDocumentScope(bodyDocumentIds, documentFilter)
+    const hasScope = scopeIds && scopeIds.length > 0
+
+    console.log("[Chat] Searching for:", query, hasScope ? `(scoped to ${scopeIds!.length} docs)` : "(all documents)")
     
-    // Fetch timeline data
-    const timelineContext = await getTimelineContext()
+    // Fetch timeline only when not scoped to specific documents
+    const timelineContext = hasScope ? null : await getTimelineContext()
     console.log("[Chat] Timeline context:", timelineContext ? "loaded" : "not available")
     
-    // Use hybrid search: keyword + semantic in parallel
-    const chunks = await performHybridSearch(query)
+    // Use hybrid search: keyword + semantic in parallel (optionally scoped)
+    const chunks = await performHybridSearch(query, scopeIds)
 
-    // If we have timeline but no doc chunks, we can still answer
+    // If we have timeline but no doc chunks, we can still answer (when not scoped)
     if ((!chunks || chunks.length === 0) && !timelineContext) {
       return NextResponse.json({
-        content: "No documents or timeline data found. Please upload documents or connect your timeline.",
+        content: hasScope
+          ? "No matching content found in the selected document(s). Try different documents or a broader question."
+          : "No documents or timeline data found. Please upload documents or connect your timeline.",
         sources: [],
       })
     }
@@ -98,7 +129,7 @@ export async function POST(request: NextRequest) {
     // Build context for Claude
     const contexts: ChatContext[] = []
     
-    // Add timeline as first context if available
+    // Add timeline as first context if available (only when not scoped)
     if (timelineContext) {
       contexts.push({
         documentId: "timeline",
@@ -153,14 +184,14 @@ export async function POST(request: NextRequest) {
 }
 
 // Hybrid search: combines keyword and semantic search for better coverage
-async function performHybridSearch(query: string): Promise<any[]> {
+async function performHybridSearch(query: string, documentIds: string[] | null = null): Promise<any[]> {
   const seenChunkIds = new Set<string>()
   const allChunks: any[] = []
   
-  // Run keyword and semantic search in parallel
+  // Run keyword and semantic search in parallel (optionally scoped to documentIds)
   const [keywordChunks, semanticChunks] = await Promise.all([
-    performKeywordSearch(query),
-    isOpenAIConfigured() ? performSemanticSearch(query) : Promise.resolve([]),
+    performKeywordSearch(query, documentIds),
+    isOpenAIConfigured() ? performSemanticSearch(query, documentIds) : Promise.resolve([]),
   ])
   
   console.log("[Chat] Keyword search found", keywordChunks.length, "chunks")
@@ -187,13 +218,17 @@ async function performHybridSearch(query: string): Promise<any[]> {
 }
 
 // Keyword search - finds exact text matches
-async function performKeywordSearch(query: string): Promise<any[]> {
+async function performKeywordSearch(query: string, documentIds: string[] | null = null): Promise<any[]> {
   try {
-    const { data: chunks, error } = await supabase
+    let q = supabase
       .from("document_chunks")
       .select("id, document_id, content, page_number")
       .ilike("content", `%${query}%`)
       .limit(20)
+    if (documentIds && documentIds.length > 0) {
+      q = q.in("document_id", documentIds)
+    }
+    const { data: chunks, error } = await q
     
     if (error) {
       console.error("[Chat] Keyword search error:", error)
@@ -208,17 +243,19 @@ async function performKeywordSearch(query: string): Promise<any[]> {
 }
 
 // Semantic search - finds conceptually similar content
-async function performSemanticSearch(query: string): Promise<any[]> {
+async function performSemanticSearch(query: string, documentIds: string[] | null = null): Promise<any[]> {
   try {
     const queryEmbedding = await createEmbedding(query)
-    const { data: chunks, error } = await supabase.rpc(
-      "match_document_chunks",
-      {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.3,
-        match_count: 10,
-      }
-    )
+    const params: Record<string, unknown> = {
+      query_embedding: queryEmbedding,
+      match_threshold: 0.3,
+      match_count: 10,
+    }
+    const rpcName = documentIds && documentIds.length > 0 ? "match_document_chunks_filtered" : "match_document_chunks"
+    if (rpcName === "match_document_chunks_filtered") {
+      params.document_ids = documentIds
+    }
+    const { data: chunks, error } = await supabase.rpc(rpcName, params)
     
     if (error) {
       console.error("[Chat] Semantic search error:", error)

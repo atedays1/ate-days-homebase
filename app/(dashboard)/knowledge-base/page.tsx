@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SourceCitation, Source } from "@/components/source-citation"
-import { Send, FileText, Sparkles, FolderOpen, Loader2 } from "lucide-react"
+import { Send, FileText, Sparkles, FolderOpen, Loader2, Filter, ChevronDown, X } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface Message {
   id: string
@@ -16,10 +17,49 @@ interface Message {
   isLoading?: boolean
 }
 
+interface DocItem {
+  id: string
+  name: string
+  created_at?: string
+}
+
+type ScopeFilter = "all" | "recent24" | "recent168"
+
 export default function KnowledgeBasePage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all")
+  const [documentList, setDocumentList] = useState<DocItem[]>([])
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
+  const [showDocumentPicker, setShowDocumentPicker] = useState(false)
+
+  useEffect(() => {
+    async function fetchDocuments() {
+      try {
+        const res = await fetch("/api/documents")
+        if (res.ok) {
+          const data = await res.json()
+          setDocumentList(data.documents || [])
+        }
+      } catch (err) {
+        console.error("Failed to fetch documents:", err)
+      }
+    }
+    fetchDocuments()
+  }, [])
+
+  const getChatBody = (query: string) => {
+    const base: { query: string; documentIds?: string[]; documentFilter?: { type: "recent"; hours: number } } = { query }
+    if (scopeFilter === "recent24") {
+      base.documentFilter = { type: "recent", hours: 24 }
+    } else if (scopeFilter === "recent168") {
+      base.documentFilter = { type: "recent", hours: 168 }
+    } else if (selectedDocumentIds.length > 0) {
+      base.documentIds = selectedDocumentIds
+    }
+    return base
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,7 +86,7 @@ export default function KnowledgeBasePage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: userMessage.content }),
+        body: JSON.stringify(getChatBody(userMessage.content)),
       })
 
       const data = await response.json()
@@ -196,32 +236,126 @@ export default function KnowledgeBasePage() {
 
       {/* Input Area */}
       <div className="border-t border-slate-200 bg-white px-4 sm:px-8 py-4">
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto flex max-w-3xl items-center gap-3"
-        >
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything about your company..."
-            className="flex-1 border-slate-200 bg-slate-50 focus-visible:ring-indigo-500"
-            disabled={isLoading}
-          />
-          <Button
-            type="submit"
-            size="icon"
-            className="bg-indigo-600 hover:bg-indigo-700"
-            disabled={isLoading || !input.trim()}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </form>
+        <div className="mx-auto max-w-3xl space-y-3">
+          {/* Scope: quick filters + document picker */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Filter className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-xs text-slate-500">Search in:</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(["all", "recent24", "recent168"] as const).map((scope) => (
+                <button
+                  key={scope}
+                  type="button"
+                  onClick={() => {
+                    setScopeFilter(scope)
+                    if (scope !== "all") setSelectedDocumentIds([])
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                    scopeFilter === scope
+                      ? "bg-indigo-600 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  )}
+                >
+                  {scope === "all" ? "All documents" : scope === "recent24" ? "Last 24 hours" : "Last 7 days"}
+                </button>
+              ))}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowDocumentPicker(!showDocumentPicker)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium transition-colors flex items-center gap-1",
+                    selectedDocumentIds.length > 0
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  )}
+                >
+                  Choose documents...
+                  {selectedDocumentIds.length > 0 && (
+                    <span className="bg-indigo-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                      {selectedDocumentIds.length}
+                    </span>
+                  )}
+                  <ChevronDown className={cn("h-3 w-3", showDocumentPicker && "rotate-180")} />
+                </button>
+                {showDocumentPicker && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowDocumentPicker(false)} />
+                    <div className="absolute left-0 top-full z-20 mt-1 max-h-48 w-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-2 shadow-lg">
+                      {documentList.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-slate-500">No documents yet</p>
+                      ) : (
+                        documentList.map((doc) => {
+                          const isSelected = selectedDocumentIds.includes(doc.id)
+                          return (
+                            <button
+                              key={doc.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDocumentIds((prev) =>
+                                  isSelected ? prev.filter((id) => id !== doc.id) : [...prev, doc.id]
+                                )
+                                setScopeFilter("all")
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              <span
+                                className={cn(
+                                  "inline-flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold text-white",
+                                  isSelected ? "border-indigo-600 bg-indigo-600" : "border-slate-300"
+                                )}
+                              >
+                                {isSelected ? "✓" : ""}
+                              </span>
+                              <span className="truncate">{doc.name}</span>
+                            </button>
+                          )
+                        })
+                      )}
+                      {selectedDocumentIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDocumentIds([])}
+                          className="mt-2 flex w-full items-center gap-1 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
+                        >
+                          <X className="h-3 w-3" />
+                          Clear selection
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex items-center gap-3">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask anything about your company..."
+              className="flex-1 border-slate-200 bg-slate-50 focus-visible:ring-indigo-500"
+              disabled={isLoading}
+            />
+            <Button
+              type="submit"
+              size="icon"
+              className="bg-indigo-600 hover:bg-indigo-700"
+              disabled={isLoading || !input.trim()}
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </form>
+        </div>
         <p className="mx-auto mt-2 max-w-3xl text-center text-xs text-slate-400">
-          Responses are generated based on your uploaded company documents
+          {scopeFilter !== "all" || selectedDocumentIds.length > 0
+            ? "Responses will use only the selected document(s)."
+            : "Responses are generated based on your uploaded company documents"}
         </p>
       </div>
     </div>

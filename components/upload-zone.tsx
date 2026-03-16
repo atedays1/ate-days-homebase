@@ -4,6 +4,7 @@ import { useCallback, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import { Upload, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 
 interface UploadZoneProps {
   onUploadComplete: () => void
@@ -17,43 +18,67 @@ interface UploadStatus {
 
 export function UploadZone({ onUploadComplete }: UploadZoneProps) {
   const [uploads, setUploads] = useState<UploadStatus[]>([])
+  const [duplicateDialog, setDuplicateDialog] = useState<{
+    file: File
+    existingName: string
+  } | null>(null)
+
+  const performUpload = useCallback(
+    async (file: File, forceDuplicate: boolean) => {
+      const formData = new FormData()
+      formData.append("file", file)
+      if (forceDuplicate) formData.append("forceDuplicate", "true")
+
+      const response = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 409 && result.duplicate) {
+          return { duplicate: true as const, existingName: result.existingName }
+        }
+        throw new Error(result.error || "Upload failed")
+      }
+
+      return { success: true as const, document: result.document }
+    },
+    []
+  )
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       for (const file of acceptedFiles) {
-        // Add to uploads with uploading status
         setUploads((prev) => [
           ...prev,
           { fileName: file.name, status: "uploading" },
         ])
 
         try {
-          const formData = new FormData()
-          formData.append("file", file)
+          const outcome = await performUpload(file, false)
 
-          const response = await fetch("/api/documents/upload", {
-            method: "POST",
-            body: formData,
-          })
-
-          const result = await response.json()
-
-          if (!response.ok) {
-            throw new Error(result.error || "Upload failed")
+          if (outcome.duplicate) {
+            setUploads((prev) =>
+              prev.map((u) =>
+                u.fileName === file.name ? { ...u, status: "uploading" } : u
+              )
+            )
+            setDuplicateDialog({ file, existingName: outcome.existingName })
+            continue
           }
 
-          // Update status to success
+          const result = outcome.document
           setUploads((prev) =>
             prev.map((u) =>
               u.fileName === file.name
-                ? { ...u, status: "success", message: `${result.document.chunksCount} chunks created` }
+                ? { ...u, status: "success", message: `${result.chunksCount} chunks created` }
                 : u
             )
           )
-
           onUploadComplete()
         } catch (error) {
-          // Update status to error
           setUploads((prev) =>
             prev.map((u) =>
               u.fileName === file.name
@@ -68,13 +93,67 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         }
       }
 
-      // Clear completed uploads after 3 seconds
       setTimeout(() => {
         setUploads((prev) => prev.filter((u) => u.status === "uploading"))
       }, 3000)
     },
-    [onUploadComplete]
+    [onUploadComplete, performUpload]
   )
+
+  const handleDuplicateConfirm = useCallback(async () => {
+    if (!duplicateDialog) return
+    const { file, existingName } = duplicateDialog
+    setDuplicateDialog(null)
+
+    setUploads((prev) => {
+      const hasEntry = prev.some((u) => u.fileName === file.name)
+      if (!hasEntry) return [...prev, { fileName: file.name, status: "uploading" }]
+      return prev.map((u) =>
+        u.fileName === file.name ? { ...u, status: "uploading" } : u
+      )
+    })
+
+    try {
+      const outcome = await performUpload(file, true)
+      if (outcome.duplicate) {
+        setDuplicateDialog({ file, existingName: outcome.existingName })
+        return
+      }
+      const result = outcome.document
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.fileName === file.name
+            ? { ...u, status: "success", message: `Saved as ${result.name} · ${result.chunksCount} chunks` }
+            : u
+        )
+      )
+      onUploadComplete()
+    } catch (error) {
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.fileName === file.name
+            ? {
+                ...u,
+                status: "error",
+                message: error instanceof Error ? error.message : "Upload failed",
+              }
+            : u
+        )
+      )
+    }
+
+    setTimeout(() => {
+      setUploads((prev) => prev.filter((u) => u.status === "uploading"))
+    }, 3000)
+  }, [duplicateDialog, onUploadComplete, performUpload])
+
+  const handleDuplicateCancel = useCallback(() => {
+    if (!duplicateDialog) return
+    setUploads((prev) =>
+      prev.filter((u) => u.fileName !== duplicateDialog.file.name)
+    )
+    setDuplicateDialog(null)
+  }, [duplicateDialog])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -165,6 +244,33 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Duplicate document confirmation dialog */}
+      {duplicateDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-lg">
+            <h3 className="text-base font-semibold text-slate-900">
+              Document already exists
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              A document named <strong className="font-medium text-slate-800">&quot;{duplicateDialog.existingName}&quot;</strong> already
+              exists. Do you want to upload it anyway? A new copy will be saved with a unique name (e.g. {duplicateDialog.existingName.replace(/(\.[^.]+)$/, "(1)$1")}).
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDuplicateCancel}
+              >
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleDuplicateConfirm}>
+                Upload anyway
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

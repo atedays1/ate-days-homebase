@@ -59,6 +59,40 @@ async function generateDocumentSummaryAndTags(
   }
 }
 
+// Given "Report.pdf", returns { base: "Report", ext: "pdf" }
+function getBaseNameAndExt(fileName: string): { base: string; ext: string } {
+  const lastDot = fileName.lastIndexOf(".")
+  if (lastDot === -1) return { base: fileName, ext: "" }
+  return {
+    base: fileName.slice(0, lastDot),
+    ext: fileName.slice(lastDot + 1),
+  }
+}
+
+// Find next available name like BaseName(1).ext, BaseName(2).ext, ...
+function nextUniqueDocumentName(
+  existingNames: string[],
+  originalName: string
+): string {
+  const { base, ext } = getBaseNameAndExt(originalName)
+  const suffix = ext ? `.${ext}` : ""
+  const pattern = new RegExp(`^${escapeRegex(base)}\\((\\d+)\\)${escapeRegex(suffix)}$`)
+  const exactMatch = originalName
+  const usedNumbers = new Set<number>()
+  for (const name of existingNames) {
+    if (name === exactMatch) usedNumbers.add(0)
+    const m = name.match(pattern)
+    if (m) usedNumbers.add(parseInt(m[1], 10))
+  }
+  let n = 1
+  while (usedNumbers.has(n)) n++
+  return ext ? `${base}(${n}).${ext}` : `${base}(${n})`
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Require authenticated and approved user
@@ -69,6 +103,7 @@ export async function POST(request: NextRequest) {
     
     const formData = await request.formData()
     const file = formData.get("file") as File | null
+    const forceDuplicate = formData.get("forceDuplicate") === "true"
 
     if (!file) {
       return NextResponse.json(
@@ -83,6 +118,34 @@ export async function POST(request: NextRequest) {
         { error: `Unsupported file type: ${file.type}. Supported types: PDF, Excel, CSV` },
         { status: 400 }
       )
+    }
+
+    // Check for existing document with same name (and optionally same size for "same file")
+    const { data: existingByName } = await supabase
+      .from("documents")
+      .select("id, size")
+      .eq("name", file.name)
+      .maybeSingle()
+
+    if (existingByName && !forceDuplicate) {
+      return NextResponse.json(
+        {
+          duplicate: true,
+          existingName: file.name,
+          message: "A document with this name already exists.",
+        },
+        { status: 409 }
+      )
+    }
+
+    // If uploading anyway, use a unique name so both documents exist
+    let documentDisplayName = file.name
+    if (existingByName && forceDuplicate) {
+      const { data: allDocuments } = await supabase
+        .from("documents")
+        .select("name")
+      const existingNames = (allDocuments || []).map((d) => d.name)
+      documentDisplayName = nextUniqueDocumentName(existingNames, file.name)
     }
 
     // Convert file to buffer
@@ -129,11 +192,11 @@ export async function POST(request: NextRequest) {
       // Continue without file storage
     }
 
-    // Insert document record
+    // Insert document record (use display name so duplicates get unique names)
     const { data: document, error: docError } = await supabase
       .from("documents")
       .insert({
-        name: file.name,
+        name: documentDisplayName,
         type: getFileType(file.type),
         size: file.size,
         file_path: storedFilePath,
@@ -184,7 +247,7 @@ export async function POST(request: NextRequest) {
 
     // Generate per-document summary and tags in the background
     const allContent = chunks.map(c => c.content).join("\n\n")
-    generateDocumentSummaryAndTags(document.id, file.name, allContent).catch((err) => {
+    generateDocumentSummaryAndTags(document.id, documentDisplayName, allContent).catch((err) => {
       console.error("Failed to generate document summary:", err)
     })
 

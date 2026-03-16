@@ -307,7 +307,7 @@ export default function KnowledgeBasePage() {
                       aria-hidden
                     />
                     <div
-                      className="fixed z-[101] max-h-48 w-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-2 shadow-lg"
+                      className="fixed z-[101] max-h-48 min-w-[20rem] w-max max-w-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-white py-2 shadow-lg"
                       style={{
                         ...(pickerPosition.top !== undefined ? { top: pickerPosition.top } : { bottom: pickerPosition.bottom }),
                         left: pickerPosition.left,
@@ -338,7 +338,7 @@ export default function KnowledgeBasePage() {
                               >
                                 {isSelected ? "✓" : ""}
                               </span>
-                              <span className="truncate">{doc.name}</span>
+                              <span className="break-words line-clamp-2">{doc.name}</span>
                             </button>
                           )
                         })

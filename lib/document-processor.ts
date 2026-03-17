@@ -12,15 +12,49 @@ export interface TextChunk {
   pageNumber?: number
 }
 
-// Process PDF files
+// Extract text from a single PDF.js page (same logic as pdf-parse's default pagerender)
+function renderPageToText(pageData: {
+  getTextContent: (opts: { normalizeWhitespace?: boolean; disableCombineTextItems?: boolean }) => Promise<{ items: Array<{ str: string; transform?: number[] }> }>
+}): Promise<string> {
+  return pageData
+    .getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
+    .then((textContent) => {
+      let lastY: number | undefined
+      let text = ""
+      for (const item of textContent.items) {
+        const y = item.transform && item.transform[5] !== undefined ? item.transform[5] : 0
+        if (lastY === y || lastY === undefined) {
+          text += item.str
+        } else {
+          text += "\n" + item.str
+        }
+        lastY = y
+      }
+      return text
+    })
+}
+
+// Process PDF files with per-page extraction so chunks get correct page numbers
 export async function processPDF(buffer: Buffer): Promise<ProcessedDocument> {
-  const data = await pdf(buffer)
-  
-  // pdf-parse returns all text, we'll treat it as a single page for simplicity
-  // For more advanced page-by-page extraction, consider using pdf-lib or pdfjs-dist
+  const pageTexts: string[] = []
+  const pagerender = (pageData: {
+    getTextContent: (opts: { normalizeWhitespace?: boolean; disableCombineTextItems?: boolean }) => Promise<{ items: Array<{ str: string; transform?: number[] }> }>
+  }) =>
+    renderPageToText(pageData).then((text) => {
+      pageTexts.push(text)
+      return text
+    })
+
+  const data = await pdf(buffer, { pagerender })
+
+  const pages =
+    pageTexts.length > 0
+      ? pageTexts.map((content, i) => ({ pageNumber: i + 1, content }))
+      : [{ pageNumber: 1, content: data.text }]
+
   return {
     text: data.text,
-    pages: [{ pageNumber: 1, content: data.text }],
+    pages,
   }
 }
 

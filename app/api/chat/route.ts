@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
     // fallback to fetching chunks from those docs so we have context to summarize
     if (hasScope && scopeIds && (!chunks || chunks.length === 0)) {
       console.log("[Chat] No hybrid matches for scoped query; falling back to chunks from selected doc(s)")
-      chunks = await getChunksFromDocuments(scopeIds, 20)
+      chunks = await getChunksFromDocuments(scopeIds, 150)
     }
 
     // If we have timeline but no doc chunks, we can still answer (when not scoped)

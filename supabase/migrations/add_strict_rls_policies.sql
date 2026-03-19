@@ -26,6 +26,8 @@ BEGIN
     'document_summary',
     'user_access',
     'document_tags',
+    'kb_conversations',
+    'kb_messages',
     'competitors',
     'competitor_discoveries',
     'pain_point_categories',
@@ -63,6 +65,12 @@ BEGIN
   END IF;
   IF to_regclass('public.document_tags') IS NOT NULL THEN
     EXECUTE 'DROP POLICY IF EXISTS "Allow all for service role" ON public.document_tags';
+  END IF;
+  IF to_regclass('public.kb_conversations') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "kb_conversations_authenticated_read" ON public.kb_conversations';
+  END IF;
+  IF to_regclass('public.kb_messages') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "kb_messages_authenticated_read" ON public.kb_messages';
   END IF;
   IF to_regclass('public.competitors') IS NOT NULL THEN
     EXECUTE 'DROP POLICY IF EXISTS "Allow authenticated read competitors" ON public.competitors';
@@ -133,6 +141,18 @@ BEGIN
     SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='document_tags' AND policyname='rls_select_document_tags'
   ) THEN
     EXECUTE 'CREATE POLICY "rls_select_document_tags" ON public.document_tags FOR SELECT TO authenticated USING (true)';
+  END IF;
+
+  IF to_regclass('public.kb_conversations') IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='kb_conversations' AND policyname='rls_select_kb_conversations'
+  ) THEN
+    EXECUTE 'CREATE POLICY "rls_select_kb_conversations" ON public.kb_conversations FOR SELECT TO authenticated USING (true)';
+  END IF;
+
+  IF to_regclass('public.kb_messages') IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='kb_messages' AND policyname='rls_select_kb_messages'
+  ) THEN
+    EXECUTE 'CREATE POLICY "rls_select_kb_messages" ON public.kb_messages FOR SELECT TO authenticated USING (true)';
   END IF;
 
   IF to_regclass('public.competitors') IS NOT NULL AND NOT EXISTS (

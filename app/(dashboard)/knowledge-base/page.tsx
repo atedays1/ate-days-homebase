@@ -52,6 +52,47 @@ export default function KnowledgeBasePage() {
     fetchDocuments()
   }, [])
 
+  useEffect(() => {
+    async function fetchHistory() {
+      try {
+        const res = await fetch("/api/knowledge-base/history")
+        if (!res.ok) return
+        const data = await res.json()
+        const history = Array.isArray(data.messages) ? data.messages : []
+        const normalized: Message[] = history
+          .filter((m: { role?: string; content?: string }) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+          .map((m: { id?: string; role: "user" | "assistant"; content: string; sources?: Source[] }) => ({
+            id: m.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            role: m.role,
+            content: m.content,
+            sources: m.sources || [],
+          }))
+        setMessages(normalized)
+      } catch (err) {
+        console.error("Failed to fetch KB history:", err)
+      }
+    }
+    fetchHistory()
+  }, [])
+
+  const persistHistoryMessages = async (items: Array<Pick<Message, "role" | "content" | "sources">>) => {
+    try {
+      await fetch("/api/knowledge-base/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: items.map((m) => ({
+            role: m.role,
+            content: m.content,
+            sources: m.sources || [],
+          })),
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to persist KB history:", err)
+    }
+  }
+
   const getChatBody = (query: string) => {
     const base: { query: string; documentIds?: string[]; documentFilter?: { type: "recent"; hours: number } } = { query }
     if (scopeFilter === "recent24") {
@@ -93,6 +134,8 @@ export default function KnowledgeBasePage() {
       })
 
       const data = await response.json()
+      const assistantContent = data.content || data.error || "Sorry, I couldn't process that request."
+      const assistantSources = data.sources || []
 
       // Replace loading message with actual response
       setMessages((prev) =>
@@ -101,13 +144,19 @@ export default function KnowledgeBasePage() {
             ? {
                 id: msg.id,
                 role: "assistant",
-                content: data.content || data.error || "Sorry, I couldn't process that request.",
-                sources: data.sources || [],
+                content: assistantContent,
+                sources: assistantSources,
               }
             : msg
         )
       )
+
+      await persistHistoryMessages([
+        { role: userMessage.role, content: userMessage.content, sources: [] },
+        { role: "assistant", content: assistantContent, sources: assistantSources },
+      ])
     } catch (error) {
+      const assistantContent = "Sorry, there was an error processing your request. Please try again."
       // Replace loading message with error
       setMessages((prev) =>
         prev.map((msg) =>
@@ -115,12 +164,17 @@ export default function KnowledgeBasePage() {
             ? {
                 id: msg.id,
                 role: "assistant",
-                content: "Sorry, there was an error processing your request. Please try again.",
+                content: assistantContent,
                 sources: [],
               }
             : msg
         )
       )
+
+      await persistHistoryMessages([
+        { role: userMessage.role, content: userMessage.content, sources: [] },
+        { role: "assistant", content: assistantContent, sources: [] },
+      ])
     } finally {
       setIsLoading(false)
     }

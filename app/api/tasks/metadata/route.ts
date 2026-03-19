@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase-server"
 import { requireAuth } from "@/lib/api-auth"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseKey)
 
 export interface TaskMetadata {
   id?: string
@@ -26,6 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const supabase = await createServiceClient()
     
     const { searchParams } = new URL(request.url)
     const taskId = searchParams.get("task_id")
@@ -72,6 +68,7 @@ export async function POST(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const supabase = await createServiceClient()
     
     const body: TaskMetadata = await request.json()
 
@@ -123,6 +120,7 @@ export async function DELETE(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const supabase = await createServiceClient()
     
     const { searchParams } = new URL(request.url)
     const taskId = searchParams.get("task_id")

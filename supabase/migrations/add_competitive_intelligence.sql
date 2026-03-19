@@ -116,11 +116,21 @@ CREATE POLICY "Allow service role all on competitor_white_space_scores" ON compe
 -- =====================================================
 -- UPDATED_AT TRIGGERS
 -- =====================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS update_competitor_pain_points_updated_at ON competitor_pain_points;
 CREATE TRIGGER update_competitor_pain_points_updated_at
   BEFORE UPDATE ON competitor_pain_points
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_competitor_white_space_scores_updated_at ON competitor_white_space_scores;
 CREATE TRIGGER update_competitor_white_space_scores_updated_at
   BEFORE UPDATE ON competitor_white_space_scores
   FOR EACH ROW

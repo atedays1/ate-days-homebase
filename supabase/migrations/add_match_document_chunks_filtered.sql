@@ -29,4 +29,4 @@ as $$
   limit match_count;
 $$;
 
-grant execute on function match_document_chunks_filtered to anon, authenticated;
+grant execute on function match_document_chunks_filtered to authenticated;

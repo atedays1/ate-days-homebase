@@ -58,7 +58,7 @@ as $$
 $$;
 
 -- Grant access to the function
-grant execute on function match_document_chunks to anon, authenticated;
+grant execute on function match_document_chunks to authenticated;
 
 -- Create task_metadata table for storing task edits/overrides
 -- This stores additional metadata that augments tasks from Google Sheets

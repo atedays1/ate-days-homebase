@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase-server"
+import { requireAuth } from "@/lib/api-auth"
 
 export async function GET(request: Request) {
+  await requireAuth()
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
 

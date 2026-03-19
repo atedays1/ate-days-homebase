@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase-server"
 import { generateDocumentSummary, isAnthropicConfigured } from "@/lib/anthropic"
 import { requireAuth } from "@/lib/api-auth"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 // POST /api/documents/summarize - Generate and store document summary
 export async function POST(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const supabase = await createServiceClient()
     
     // Check if Anthropic is configured
     if (!isAnthropicConfigured()) {

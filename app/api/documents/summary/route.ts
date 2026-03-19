@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase-server"
 import { requireAuth } from "@/lib/api-auth"
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
 // GET /api/documents/summary - Fetch the cached document summary
 export async function GET(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const supabase = await createServiceClient()
     
     console.log("[Summary GET] Fetching summary from database...")
     

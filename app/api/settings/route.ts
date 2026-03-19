@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase-server"
 import { requireAuth, requireAdmin } from "@/lib/api-auth"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 // GET /api/settings?key=timeline_spreadsheet_id
 export async function GET(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const supabase = await createServiceClient()
     
     const { searchParams } = new URL(request.url)
     const key = searchParams.get("key")
@@ -63,6 +59,7 @@ export async function POST(request: NextRequest) {
   try {
     // Require admin for modifying settings
     await requireAdmin()
+    const supabase = await createServiceClient()
     
     const body = await request.json()
     const { key, value } = body

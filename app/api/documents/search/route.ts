@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase-server"
 import { createEmbedding, isOpenAIConfigured } from "@/lib/embeddings"
 import { requireAuth } from "@/lib/api-auth"
 
 export async function GET(request: NextRequest) {
   try {
     await requireAuth()
+    const serviceClient = await createServiceClient()
     
     const { searchParams } = new URL(request.url)
     const query = searchParams.get("q")
@@ -19,9 +20,9 @@ export async function GET(request: NextRequest) {
     // Run keyword search and semantic search in parallel
     const [keywordResults, semanticResults] = await Promise.all([
       // 1. Keyword search - find exact matches in document chunks
-      performKeywordSearch(trimmedQuery),
+      performKeywordSearch(serviceClient, trimmedQuery),
       // 2. Semantic search - find conceptually similar content
-      isOpenAIConfigured() ? performSemanticSearch(trimmedQuery) : Promise.resolve({ matches: [], error: null }),
+      isOpenAIConfigured() ? performSemanticSearch(serviceClient, trimmedQuery) : Promise.resolve({ matches: [], error: null }),
     ])
 
     // Merge results from both searches
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch full document details
-    const { data: documents, error: docsError } = await supabase
+    const { data: documents, error: docsError } = await serviceClient
       .from("documents")
       .select("*")
       .in("id", Array.from(allDocumentIds))
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch tags for these documents
-    const { data: tags } = await supabase
+    const { data: tags } = await serviceClient
       .from("document_tags")
       .select("document_id, tag")
       .in("document_id", Array.from(allDocumentIds))
@@ -139,10 +140,10 @@ export async function GET(request: NextRequest) {
 }
 
 // Keyword search - finds exact text matches in document chunks
-async function performKeywordSearch(query: string): Promise<{ matches: any[], error: any }> {
+async function performKeywordSearch(serviceClient: Awaited<ReturnType<typeof createServiceClient>>, query: string): Promise<{ matches: any[], error: any }> {
   try {
     // Search for the query in chunk content using case-insensitive match
-    const { data: matches, error } = await supabase
+    const { data: matches, error } = await serviceClient
       .from("document_chunks")
       .select("id, document_id, content, page_number")
       .ilike("content", `%${query}%`)
@@ -161,11 +162,11 @@ async function performKeywordSearch(query: string): Promise<{ matches: any[], er
 }
 
 // Semantic search - finds conceptually similar content using embeddings
-async function performSemanticSearch(query: string): Promise<{ matches: any[], error: any }> {
+async function performSemanticSearch(serviceClient: Awaited<ReturnType<typeof createServiceClient>>, query: string): Promise<{ matches: any[], error: any }> {
   try {
     const queryEmbedding = await createEmbedding(query)
 
-    const { data: matches, error } = await supabase.rpc("match_document_chunks", {
+    const { data: matches, error } = await serviceClient.rpc("match_document_chunks", {
       query_embedding: queryEmbedding,
       match_threshold: 0.5,
       match_count: 20,

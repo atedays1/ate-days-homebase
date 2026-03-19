@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
 import { createServiceClient } from "@/lib/supabase-server"
 import { requireAuth } from "@/lib/api-auth"
 
@@ -22,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get the document to find its file_path
-    const { data: document, error: docError } = await supabase
+    const { data: document, error: docError } = await serviceClient
       .from("documents")
       .select("id, name, type, file_path")
       .eq("id", id)

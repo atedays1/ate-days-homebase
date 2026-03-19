@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase, Document, DocumentChunk } from "@/lib/supabase"
+import { DocumentChunk } from "@/lib/supabase"
 import { createServiceClient } from "@/lib/supabase-server"
 import { createEmbedding, createEmbeddings } from "@/lib/embeddings"
 import { processPDF, processSpreadsheet, chunkText } from "@/lib/document-processor"
@@ -17,6 +17,7 @@ async function triggerSummaryRegeneration() {
 
 // Helper to generate and save document summary and tags
 async function generateDocumentSummaryAndTags(
+  serviceClient: Awaited<ReturnType<typeof createServiceClient>>,
   documentId: string,
   documentName: string,
   content: string
@@ -29,7 +30,7 @@ async function generateDocumentSummaryAndTags(
     const { summary, suggestedTags } = await generateSingleDocumentSummary(content, documentName)
     
     if (summary) {
-      await supabase
+      await serviceClient
         .from("documents")
         .update({ summary })
         .eq("id", documentId)
@@ -40,7 +41,7 @@ async function generateDocumentSummaryAndTags(
         document_id: documentId,
         tag
       }))
-      await supabase
+      await serviceClient
         .from("document_tags")
         .insert(tagRecords)
     }
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Create document record
-        const { data: doc, error: docError } = await supabase
+        const { data: doc, error: docError } = await serviceClient
           .from("documents")
           .insert({
             name: downloadedFile.name,
@@ -207,14 +208,14 @@ export async function POST(request: NextRequest) {
           embedding: embeddings[i],
         }))
 
-        const { error: chunksError } = await supabase
+        const { error: chunksError } = await serviceClient
           .from("document_chunks")
           .insert(chunkInserts)
 
         if (chunksError) {
           console.error("Error creating chunks:", chunksError)
           // Clean up the document and stored file if chunks failed
-          await supabase.from("documents").delete().eq("id", doc.id)
+          await serviceClient.from("documents").delete().eq("id", doc.id)
           if (storedFilePath) {
             await serviceClient.storage.from("documents").remove([storedFilePath])
           }
@@ -228,7 +229,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate summary and tags in background
-        generateDocumentSummaryAndTags(doc.id, downloadedFile.name, text).catch(err => {
+        generateDocumentSummaryAndTags(serviceClient, doc.id, downloadedFile.name, text).catch(err => {
           console.error("Failed to generate summary for imported doc:", err)
         })
 

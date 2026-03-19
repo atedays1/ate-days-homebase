@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase-server"
 import { requireAuth } from "@/lib/api-auth"
 
 // POST - Add a tag to a document
 export async function POST(request: NextRequest) {
   try {
     await requireAuth()
+    const serviceClient = await createServiceClient()
     
     const { documentId, tag } = await request.json()
 
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { error } = await supabase
+    const { error } = await serviceClient
       .from("document_tags")
       .insert({ document_id: documentId, tag })
 
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     await requireAuth()
+    const serviceClient = await createServiceClient()
     
     const { searchParams } = new URL(request.url)
     const documentId = searchParams.get("documentId")
@@ -56,7 +58,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const { error } = await supabase
+    const { error } = await serviceClient
       .from("document_tags")
       .delete()
       .eq("document_id", documentId)

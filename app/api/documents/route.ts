@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { isSupabaseConfigured } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase-server"
 import { requireAuth } from "@/lib/api-auth"
 
 // GET - List all documents with tags, or specific documents by IDs
@@ -7,6 +8,7 @@ export async function GET(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const serviceClient = await createServiceClient()
     
     if (!isSupabaseConfigured()) {
       return NextResponse.json({
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest) {
     const idsParam = searchParams.get("ids")
 
     // Fetch documents (optionally filtered by IDs)
-    let query = supabase.from("documents").select("*")
+    let query = serviceClient.from("documents").select("*")
     
     if (idsParam) {
       // Fetch specific documents by IDs
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch tags for all documents
-    const { data: tags } = await supabase
+    const { data: tags } = await serviceClient
       .from("document_tags")
       .select("document_id, tag")
 
@@ -75,6 +77,7 @@ export async function DELETE(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const serviceClient = await createServiceClient()
     
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
@@ -87,7 +90,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete document (chunks will be deleted via CASCADE)
-    const { error } = await supabase
+    const { error } = await serviceClient
       .from("documents")
       .delete()
       .eq("id", id)

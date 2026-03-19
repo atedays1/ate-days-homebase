@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { isSupabaseConfigured } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase-server"
 import { createEmbedding, isOpenAIConfigured } from "@/lib/embeddings"
 import { generateRAGResponse, isAnthropicConfigured, ChatContext } from "@/lib/anthropic"
 import { getFullSheet, isServiceAccountConfigured } from "@/lib/google-sheets"
@@ -8,10 +9,10 @@ import { MONTHS } from "@/lib/timeline-types"
 import { requireAuth } from "@/lib/api-auth"
 
 // Fetch timeline data from Google Sheets
-async function getTimelineContext(): Promise<string | null> {
+async function getTimelineContext(serviceClient: Awaited<ReturnType<typeof createServiceClient>>): Promise<string | null> {
   try {
     // Get spreadsheet ID from settings
-    const { data: setting } = await supabase
+    const { data: setting } = await serviceClient
       .from("app_settings")
       .select("value")
       .eq("key", "timeline_spreadsheet_id")
@@ -58,6 +59,7 @@ async function getTimelineContext(): Promise<string | null> {
 
 // Resolve document scope: documentIds array or documentFilter (e.g. recent 24h) to list of document IDs
 async function resolveDocumentScope(
+  serviceClient: Awaited<ReturnType<typeof createServiceClient>>,
   documentIds?: string[],
   documentFilter?: { type: "recent"; hours: number }
 ): Promise<string[] | null> {
@@ -66,7 +68,7 @@ async function resolveDocumentScope(
   }
   if (documentFilter?.type === "recent" && documentFilter.hours > 0) {
     const since = new Date(Date.now() - documentFilter.hours * 60 * 60 * 1000).toISOString()
-    const { data: docs, error } = await supabase
+    const { data: docs, error } = await serviceClient
       .from("documents")
       .select("id")
       .gte("created_at", since)
@@ -84,6 +86,7 @@ export async function POST(request: NextRequest) {
   try {
     // Require authenticated and approved user
     await requireAuth()
+    const serviceClient = await createServiceClient()
     
     const body = await request.json()
     const { query, documentIds: bodyDocumentIds, documentFilter } = body
@@ -104,23 +107,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve document scope (specific IDs or "recent" filter)
-    const scopeIds = await resolveDocumentScope(bodyDocumentIds, documentFilter)
+    const scopeIds = await resolveDocumentScope(serviceClient, bodyDocumentIds, documentFilter)
     const hasScope = scopeIds && scopeIds.length > 0
 
     console.log("[Chat] Searching for:", query, hasScope ? `(scoped to ${scopeIds!.length} docs)` : "(all documents)")
     
     // Fetch timeline only when not scoped to specific documents
-    const timelineContext = hasScope ? null : await getTimelineContext()
+    const timelineContext = hasScope ? null : await getTimelineContext(serviceClient)
     console.log("[Chat] Timeline context:", timelineContext ? "loaded" : "not available")
     
     // Use hybrid search: keyword + semantic in parallel (optionally scoped)
-    let chunks = await performHybridSearch(query, scopeIds)
+    let chunks = await performHybridSearch(serviceClient, query, scopeIds)
 
     // When user scoped to specific doc(s) but query didn't match (e.g. "summarize this document"),
     // fallback to fetching chunks from those docs so we have context to summarize
     if (hasScope && scopeIds && (!chunks || chunks.length === 0)) {
       console.log("[Chat] No hybrid matches for scoped query; falling back to chunks from selected doc(s)")
-      chunks = await getChunksFromDocuments(scopeIds, 150)
+      chunks = await getChunksFromDocuments(serviceClient, scopeIds, 150)
     }
 
     // If we have timeline but no doc chunks, we can still answer (when not scoped)
@@ -149,7 +152,7 @@ export async function POST(request: NextRequest) {
     // Add document chunks
     if (chunks && chunks.length > 0) {
       const documentIds = [...new Set(chunks.map((c: { document_id: string }) => c.document_id))]
-      const { data: documents } = await supabase
+      const { data: documents } = await serviceClient
         .from("documents")
         .select("id, name")
         .in("id", documentIds)
@@ -191,14 +194,14 @@ export async function POST(request: NextRequest) {
 }
 
 // Hybrid search: combines keyword and semantic search for better coverage
-async function performHybridSearch(query: string, documentIds: string[] | null = null): Promise<any[]> {
+async function performHybridSearch(serviceClient: Awaited<ReturnType<typeof createServiceClient>>, query: string, documentIds: string[] | null = null): Promise<any[]> {
   const seenChunkIds = new Set<string>()
   const allChunks: any[] = []
   
   // Run keyword and semantic search in parallel (optionally scoped to documentIds)
   const [keywordChunks, semanticChunks] = await Promise.all([
-    performKeywordSearch(query, documentIds),
-    isOpenAIConfigured() ? performSemanticSearch(query, documentIds) : Promise.resolve([]),
+    performKeywordSearch(serviceClient, query, documentIds),
+    isOpenAIConfigured() ? performSemanticSearch(serviceClient, query, documentIds) : Promise.resolve([]),
   ])
   
   console.log("[Chat] Keyword search found", keywordChunks.length, "chunks")
@@ -225,9 +228,9 @@ async function performHybridSearch(query: string, documentIds: string[] | null =
 }
 
 // Keyword search - finds exact text matches
-async function performKeywordSearch(query: string, documentIds: string[] | null = null): Promise<any[]> {
+async function performKeywordSearch(serviceClient: Awaited<ReturnType<typeof createServiceClient>>, query: string, documentIds: string[] | null = null): Promise<any[]> {
   try {
-    let q = supabase
+    let q = serviceClient
       .from("document_chunks")
       .select("id, document_id, content, page_number")
       .ilike("content", `%${query}%`)
@@ -250,7 +253,7 @@ async function performKeywordSearch(query: string, documentIds: string[] | null 
 }
 
 // Semantic search - finds conceptually similar content
-async function performSemanticSearch(query: string, documentIds: string[] | null = null): Promise<any[]> {
+async function performSemanticSearch(serviceClient: Awaited<ReturnType<typeof createServiceClient>>, query: string, documentIds: string[] | null = null): Promise<any[]> {
   try {
     const queryEmbedding = await createEmbedding(query)
     const params: Record<string, unknown> = {
@@ -262,7 +265,7 @@ async function performSemanticSearch(query: string, documentIds: string[] | null
     if (rpcName === "match_document_chunks_filtered") {
       params.document_ids = documentIds
     }
-    const { data: chunks, error } = await supabase.rpc(rpcName, params)
+    const { data: chunks, error } = await serviceClient.rpc(rpcName, params)
     
     if (error) {
       console.error("[Chat] Semantic search error:", error)
@@ -277,9 +280,9 @@ async function performSemanticSearch(query: string, documentIds: string[] | null
 }
 
 // Fallback: get chunks from selected documents without query matching (for "summarize this document" etc.)
-async function getChunksFromDocuments(documentIds: string[], limit: number): Promise<any[]> {
+async function getChunksFromDocuments(serviceClient: Awaited<ReturnType<typeof createServiceClient>>, documentIds: string[], limit: number): Promise<any[]> {
   try {
-    const { data: chunks, error } = await supabase
+    const { data: chunks, error } = await serviceClient
       .from("document_chunks")
       .select("id, document_id, content, page_number")
       .in("document_id", documentIds)

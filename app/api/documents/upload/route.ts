@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
 import { createServiceClient } from "@/lib/supabase-server"
 import { createEmbeddings } from "@/lib/embeddings"
 import {
@@ -21,6 +20,7 @@ async function triggerSummaryRegeneration() {
 
 // Helper to generate and save document summary and tags
 async function generateDocumentSummaryAndTags(
+  serviceClient: Awaited<ReturnType<typeof createServiceClient>>,
   documentId: string,
   documentName: string,
   content: string
@@ -35,7 +35,7 @@ async function generateDocumentSummaryAndTags(
     
     // Update document with summary
     if (summary) {
-      await supabase
+      await serviceClient
         .from("documents")
         .update({ summary })
         .eq("id", documentId)
@@ -47,7 +47,7 @@ async function generateDocumentSummaryAndTags(
         document_id: documentId,
         tag
       }))
-      await supabase
+      await serviceClient
         .from("document_tags")
         .insert(tagRecords)
         .onConflict("document_id,tag")
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for existing document with same name (and optionally same size for "same file")
-    const { data: existingByName } = await supabase
+    const { data: existingByName } = await serviceClient
       .from("documents")
       .select("id, size")
       .eq("name", file.name)
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     // If uploading anyway, use a unique name so both documents exist
     let documentDisplayName = file.name
     if (existingByName && forceDuplicate) {
-      const { data: allDocuments } = await supabase
+      const { data: allDocuments } = await serviceClient
         .from("documents")
         .select("name")
       const existingNames = (allDocuments || []).map((d) => d.name)
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert document record (use display name so duplicates get unique names)
-    const { data: document, error: docError } = await supabase
+    const { data: document, error: docError } = await serviceClient
       .from("documents")
       .insert({
         name: documentDisplayName,
@@ -228,14 +228,14 @@ export async function POST(request: NextRequest) {
       page_number: chunk.pageNumber || null,
     }))
 
-    const { error: chunksError } = await supabase
+    const { error: chunksError } = await serviceClient
       .from("document_chunks")
       .insert(chunkRecords)
 
     if (chunksError) {
       console.error("Error inserting chunks:", chunksError)
       // Clean up the document record and stored file if chunks fail
-      await supabase.from("documents").delete().eq("id", document.id)
+      await serviceClient.from("documents").delete().eq("id", document.id)
       if (storedFilePath) {
         await serviceClient.storage.from("documents").remove([storedFilePath])
       }
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
 
     // Generate per-document summary and tags in the background
     const allContent = chunks.map(c => c.content).join("\n\n")
-    generateDocumentSummaryAndTags(document.id, documentDisplayName, allContent).catch((err) => {
+    generateDocumentSummaryAndTags(serviceClient, document.id, documentDisplayName, allContent).catch((err) => {
       console.error("Failed to generate document summary:", err)
     })
 

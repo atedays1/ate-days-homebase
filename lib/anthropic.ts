@@ -67,7 +67,7 @@ DOCUMENT CONTEXT:
 ${contextString}`
 
   const message = await anthropic.messages.create({
-    model: "claude-3-haiku-20240307",
+    model: "claude-haiku-4-5",
     max_tokens: 2048,
     system: systemPrompt,
     messages: [
@@ -139,7 +139,7 @@ Guidelines:
 - If documents don't contain certain information, use empty arrays`
 
   const message = await anthropic.messages.create({
-    model: "claude-3-haiku-20240307",
+    model: "claude-haiku-4-5",
     max_tokens: 4096,
     system: systemPrompt,
     messages: [
@@ -230,7 +230,7 @@ Guidelines:
 
   try {
     const message = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
+      model: "claude-haiku-4-5",
       max_tokens: 500,
       system: systemPrompt,
       messages: [

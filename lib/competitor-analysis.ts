@@ -46,7 +46,7 @@ Return ONLY valid JSON:
 {"ai_summary": "...", "likely_pain_points": [...], "white_space_scores": [...]}`
 
     const response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
+      model: "claude-haiku-4-5",
       max_tokens: 1000,
       messages: [{ role: "user", content: prompt }],
     })
